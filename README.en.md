@@ -2,6 +2,8 @@
 
 # ARTEX — Korean Edition
 
+🌐 **Online demo**: [https://azrielnan.github.io/artex-ko-main/](https://azrielnan.github.io/artex-ko-main/)
+
 **An autonomous penetration-testing system driven by LLM multi-agents** (Go backend + Next.js frontend)
 
 [한국어](README.md) · [中文](README.zh.md) · English
@@ -397,5 +399,5 @@ This project is provided "AS IS" without any warranty, express or implied. The o
 
 - Upstream repository: [Autumn-27/ARTEX](https://github.com/Autumn-27/ARTEX)
 - Original README (Chinese): [README.zh.md](README.zh.md)
-- Original online demo (Chinese UI): [https://artex-demo.vercel.app/](https://artex-demo.vercel.app/)
+- Project demo (Chinese UI): [https://azrielnan.github.io/artex-ko-main/](https://azrielnan.github.io/artex-ko-main/)
 - Agent SDK: [Autumn-27/norma](https://github.com/Autumn-27/norma)

@@ -1,23 +1,31 @@
 <div align="center">
 
-# ARTEX
+# ARTEX 中文版
 
-AI 自主渗透测试系统（Go 后端 + Next.js 前端）
+面向**已获授权安全测试与本地研究**的 AI 多 Agent 安全测试平台，采用 Go 后端、Next.js 前端和 PostgreSQL。项目提供任务编排、资产管理、流量记录、人工审批、漏洞发现与报告能力。
 
 
-🌐 **在线 Demo**： [https://artex-demo.vercel.app/](https://artex-demo.vercel.app/)
+🌐 **在线 Demo**： [https://azrielnan.github.io/artex-ko-main/](https://azrielnan.github.io/artex-ko-main/)
 
 </div>
 
 ---
 
-> ⚠️ **安全与合规提示（韩语本地化版本）**：本仓库是 [Autumn-27/ARTEX](https://github.com/Autumn-27/ARTEX) 的韩语本地化 fork，仅供在获得授权的环境中、以防御与检测为目的使用。2026 年 10 月有韩国媒体报道称，调查机构在针对韩国金融机构的个人信息泄露事件中发现了 ARTEX 被使用的迹象（调查进行中）。请勿对未经书面授权的系统进行扫描、探测或利用。完整警告请见 [README.md（한국어）](README.md) 与 [README.en.md（English）](README.en.md)。
+> ⚠️ **安全与合规提示**：本项目只适用于代码学习、功能评估以及已获得明确授权的测试环境。请勿对未授权的系统进行扫描、探测、利用或攻击。使用前请阅读文末的[许可与免责声明](#许可与免责声明)，并遵守所在地适用的网络安全、数据保护与计算机犯罪相关法律法规。
+
+---
+
+## 在线演示
+
+访问 [ARTEX 中文版在线 Demo](https://azrielnan.github.io/artex-ko-main/) 可直接查看中文界面和主要交互流程。演示站使用模拟数据，不连接真实目标；生产或本地部署请按下方安装说明配置数据库与 LLM。
+
+项目仓库：[azrielnan/artex-ko-main](https://github.com/azrielnan/artex-ko-main) · [版本发布](https://github.com/azrielnan/artex-ko-main/releases)
 
 ---
 
 ## 截图预览
 
-> 完整交互见[在线 Demo](https://artex-demo.vercel.app/)。
+> 完整交互见[在线 Demo](https://azrielnan.github.io/artex-ko-main/)。
 
 | 仪表盘（总览 / Token 消耗 / 活动流） | 任务列表 |
 | :---: | :---: |
@@ -73,8 +81,8 @@ AI 自主渗透测试系统（Go 后端 + Next.js 前端）
 ### 方式一：一键安装脚本（推荐）
 
 ```bash
-git clone https://github.com/Autumn-27/ARTEX.git
-cd ARTEX
+git clone https://github.com/azrielnan/artex-ko-main.git
+cd artex-ko-main
 ./install.sh
 ```
 
@@ -88,8 +96,8 @@ cd ARTEX
 ### 方式二：Docker Compose（手动）
 
 ```bash
-git clone https://github.com/Autumn-27/ARTEX.git
-cd ARTEX
+git clone https://github.com/azrielnan/artex-ko-main.git
+cd artex-ko-main
 cp .env.example .env          # 填 POSTGRES_PASSWORD、可选 ANTHROPIC_API_KEY
 docker compose up -d          # 拉取 autumn27/artex 镜像 + postgres
 # → http://localhost:8787
@@ -104,7 +112,7 @@ docker compose up -d          # 拉取 autumn27/artex 镜像 + postgres
 
 ### 方式三：下载预编译二进制（Releases）
 
-到 [Releases](https://github.com/Autumn-27/ARTEX/releases) 下载对应平台的 zip，解压后得到 `artex` + `start.sh`（Windows 为 `start.bat`）+ `skills/` + `config.example.json`：
+到[项目 Releases](https://github.com/azrielnan/artex-ko-main/releases) 下载对应平台的 zip，解压后得到 `artex` + `start.sh`（Windows 为 `start.bat`）+ `skills/` + `config.example.json`：
 
 ```bash
 cp config.example.json config.json   # 填好 database 连接
@@ -186,7 +194,7 @@ docker image prune -f          # 清理旧镜像（可选）
 
 ### 方式四：预编译二进制（Releases）
 
-到 [Releases](https://github.com/Autumn-27/ARTEX/releases) 下载新版本 zip，停掉旧进程后覆盖 `artex` 与 `skills/`（保留你的 `config.json` 与 `data/`），重启即可：
+到[项目 Releases](https://github.com/azrielnan/artex-ko-main/releases) 下载新版本 zip，停掉旧进程后覆盖 `artex` 与 `skills/`（保留你的 `config.json` 与 `data/`），重启即可：
 
 ```bash
 cp -r <解压目录>/skills ./ && cp <解压目录>/artex ./

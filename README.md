@@ -2,6 +2,8 @@
 
 # ARTEX 한국어판
 
+🌐 **온라인 데모**: [https://azrielnan.github.io/artex-ko-main/](https://azrielnan.github.io/artex-ko-main/)
+
 **LLM 멀티 에이전트가 자율적으로 침투 테스트를 수행하는 시스템** (Go 백엔드 + Next.js 프런트엔드)
 
 한국어 · [中文](README.zh.md) · [English](README.en.md)
@@ -403,5 +405,5 @@ flowchart TB
 
 - 원본 저장소: [Autumn-27/ARTEX](https://github.com/Autumn-27/ARTEX)
 - 원본 README(중국어): [README.zh.md](README.zh.md)
-- 원본 온라인 데모(중국어 UI): [https://artex-demo.vercel.app/](https://artex-demo.vercel.app/)
+- 프로젝트 데모(중국어 UI): [https://azrielnan.github.io/artex-ko-main/](https://azrielnan.github.io/artex-ko-main/)
 - 에이전트 SDK: [Autumn-27/norma](https://github.com/Autumn-27/norma)
