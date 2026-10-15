@@ -1,0 +1,52 @@
+
+> artex-web@2.2.0 dev
+> next dev --hostname 127.0.0.1
+
+▲ Next.js 16.2.9 (Turbopack)
+- Local:         http://127.0.0.1:3000
+- Network:       http://127.0.0.1:3000
+✓ Ready in 1372ms
+
+ GET /function/tasks 200 in 567ms (next.js: 73ms, proxy.ts: 107ms, application-code: 388ms)
+ GET /function/tasks 200 in 144ms (next.js: 4ms, proxy.ts: 6ms, application-code: 133ms)
+ GET /function/tasks 200 in 107ms (next.js: 13ms, proxy.ts: 15ms, application-code: 79ms)
+ GET /function/tasks 200 in 44ms (next.js: 3ms, proxy.ts: 4ms, application-code: 37ms)
+ GET /function/tasks 200 in 44ms (next.js: 3ms, proxy.ts: 4ms, application-code: 37ms)
+ GET /function/tasks 200 in 54ms (next.js: 3ms, proxy.ts: 4ms, application-code: 47ms)
+ GET /system/settings 200 in 45ms (next.js: 24ms, proxy.ts: 4ms, application-code: 16ms)
+ GET /system/llm 200 in 40ms (next.js: 21ms, proxy.ts: 4ms, application-code: 15ms)
+ GET /function/tasks 200 in 25ms (next.js: 3ms, proxy.ts: 7ms, application-code: 15ms)
+ GET /function/findings 200 in 2.8s (next.js: 2.7s, proxy.ts: 4ms, application-code: 41ms)
+ GET /function/findings 200 in 1364ms (next.js: 1335ms, proxy.ts: 5ms, application-code: 24ms)
+ GET /system/intercept/approvals 200 in 44ms (next.js: 24ms, proxy.ts: 4ms, application-code: 16ms)
+ GET /function/tasks 200 in 19ms (next.js: 3ms, proxy.ts: 4ms, application-code: 12ms)
+ GET /function/tasks 200 in 18ms (next.js: 3ms, proxy.ts: 3ms, application-code: 12ms)
+ GET /function/commands 200 in 637ms (next.js: 598ms, proxy.ts: 3ms, application-code: 36ms)
+ GET /function/llm-records 200 in 593ms (next.js: 565ms, proxy.ts: 6ms, application-code: 21ms)
+ GET /function/commands 200 in 29ms (next.js: 6ms, proxy.ts: 5ms, application-code: 18ms)
+ GET /function/traffic 200 in 1114ms (next.js: 1094ms, proxy.ts: 4ms, application-code: 17ms)
+ GET /function/findings 200 in 27ms (next.js: 3ms, proxy.ts: 6ms, application-code: 18ms)
+ GET /function/tasks 200 in 20ms (next.js: 3ms, proxy.ts: 4ms, application-code: 13ms)
+○ Compiling /function/tasks/detail ...
+ GET /function/findings 200 in 34ms (next.js: 5ms, proxy.ts: 5ms, application-code: 24ms)
+ GET /function/tasks/detail?id=t-new-1 200 in 6.7s (next.js: 6.6s, proxy.ts: 4ms, application-code: 31ms)
+ GET /function/tasks/detail?id=t-new-1 200 in 126ms (next.js: 87ms, proxy.ts: 9ms, application-code: 30ms)
+ GET /function/tasks/detail?id=t-new-1 200 in 67ms (next.js: 25ms, proxy.ts: 8ms, application-code: 33ms)
+ GET /function/commands 200 in 21ms (next.js: 4ms, proxy.ts: 3ms, application-code: 13ms)
+ GET /function/traffic 200 in 22ms (next.js: 5ms, proxy.ts: 3ms, application-code: 15ms)
+ GET /function/commands 200 in 20ms (next.js: 3ms, proxy.ts: 4ms, application-code: 13ms)
+ GET /function/findings 200 in 21ms (next.js: 4ms, proxy.ts: 4ms, application-code: 12ms)
+ GET /function/findings 200 in 18ms (next.js: 3ms, proxy.ts: 4ms, application-code: 12ms)
+ GET /function/tasks 200 in 23ms (next.js: 6ms, proxy.ts: 3ms, application-code: 14ms)
+ GET /function/tasks/detail?id=t-new-1 200 in 28ms (next.js: 9ms, proxy.ts: 4ms, application-code: 15ms)
+ GET /system/intercept/approvals 200 in 28ms (next.js: 7ms, proxy.ts: 4ms, application-code: 17ms)
+ GET /function/findings 200 in 24ms (next.js: 4ms, proxy.ts: 4ms, application-code: 16ms)
+ GET /function/tasks 200 in 23ms (next.js: 4ms, proxy.ts: 6ms, application-code: 14ms)
+ GET /function/tasks/detail?id=t-new-1 200 in 24ms (next.js: 3ms, proxy.ts: 7ms, application-code: 14ms)
+ GET /function/tasks/detail? 200 in 222ms (next.js: 4ms, proxy.ts: 4ms, application-code: 215ms)
+ GET /dashboard 200 in 1518ms (next.js: 1491ms, proxy.ts: 4ms, application-code: 23ms)
+ GET /dashboard 200 in 42ms (next.js: 6ms, proxy.ts: 10ms, application-code: 26ms)
+ GET /chat 200 in 1283ms (next.js: 1258ms, proxy.ts: 5ms, application-code: 21ms)
+ GET /chat 200 in 18ms (next.js: 3ms, proxy.ts: 4ms, application-code: 11ms)
+ GET /function/tasks 200 in 17ms (next.js: 3ms, proxy.ts: 4ms, application-code: 11ms)
+[?25h

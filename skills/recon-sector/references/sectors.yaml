@@ -1,0 +1,321 @@
+# Sector database for recon-sector — one entry per sector with platform-specific info.
+# Used by recon-sector to tailor recon probes per industry.
+
+sectors:
+  automotive-dealers:
+    platforms: [WordPress, Dealer.com, DealerOn, CDK Global]
+    cms_dominant: WordPress
+    hosting: "Shared hosting, CDK/Dealer.com SaaS"
+    high_value_paths:
+      - /wp-content/debug.log
+      - /wp-content/uploads/
+      - /wp-json/wp/v2/users
+      - /xmlrpc.php
+      - /financing
+      - /credit-application
+      - /inventory/api
+    pii_risk: "Credit applications with SSN, income, address. Inventory VIN/cost data."
+
+  bakeries:
+    platforms: [WordPress, WooCommerce, Shopify, Toast POS]
+    cms_dominant: WordPress
+    hosting: "Shared hosting, Shopify"
+    high_value_paths:
+      - /wp-json/wc/v3/
+      - /wp-content/debug.log
+      - /wp-json/wp/v2/users
+      - /xmlrpc.php
+      - /order-online
+      - /catering
+    pii_risk: "Custom cake orders with delivery addresses. WooCommerce customer PII."
+
+  breweries:
+    platforms: [WordPress, Shopify, Untappd, WooCommerce]
+    cms_dominant: WordPress
+    hosting: "Shared hosting, Shopify"
+    high_value_paths:
+      - /wp-json/wc/v3/
+      - /shop
+      - /menu
+      - /events
+      - /wp-content/debug.log
+    pii_risk: "WooCommerce orders, age-gate bypass, Untappd API keys in JS."
+
+  cafes:
+    platforms: [WordPress, Toast POS, Square Online, ChowNow]
+    cms_dominant: WordPress
+    hosting: "Shared hosting, Toast/Square SaaS"
+    high_value_paths:
+      - /wp-json/wp/v2/users
+      - /xmlrpc.php
+      - /order
+      - /rewards
+      - /wp-content/debug.log
+    pii_risk: "Loyalty points manipulation, Toast/Square API keys in JS bundles."
+
+  carpet-cleaning:
+    platforms: [WordPress, Wix, Squarespace]
+    cms_dominant: WordPress
+    hosting: "Shared hosting (GoDaddy, Bluehost, SiteGround)"
+    high_value_paths:
+      - /wp-content/debug.log
+      - /wp-content/uploads/
+      - /wp-json/wp/v2/users
+      - /xmlrpc.php
+      - /estimate
+      - /quote
+    pii_risk: "Emergency booking PII, EXIF GPS in gallery photos."
+
+  carwashes:
+    platforms: [WordPress, Wix, Squarespace, EverWash, Washify]
+    cms_dominant: WordPress
+    hosting: "Shared hosting (GoDaddy, HostGator, SiteGround)"
+    high_value_paths:
+      - /wp-content/debug.log
+      - /wp-content/uploads/
+      - /wp-json/wp/v2/users
+      - /xmlrpc.php
+      - /membership
+      - /book
+    pii_risk: "Membership portal PII (names, addresses, vehicle info, payment methods)."
+
+  churches:
+    platforms: [WordPress]
+    cms_dominant: WordPress
+    hosting: "Shared hosting, no WAF"
+    high_value_paths:
+      - /wp-content/debug.log
+      - /wp-json/wp/v2/users
+      - /xmlrpc.php
+      - /info.php
+      - /wp-content/uploads/
+    pii_risk: "Donor data, debug log with DB credentials, open XMLRPC."
+
+  daycare:
+    platforms: [WordPress, Wix, Squarespace]
+    cms_dominant: WordPress
+    hosting: "Shared hosting (GoDaddy, HostGator, Bluehost, SiteGround)"
+    high_value_paths:
+      - /wp-content/debug.log
+      - /wp-content/uploads/
+      - /wp-json/wp/v2/users
+      - /xmlrpc.php
+      - /enrollment
+      - /registration
+    pii_risk: "PII of minors (child names, parent contact, medical info). Photo galleries without auth."
+
+  dentists:
+    platforms: [WordPress, Dentrix Ascend, Eaglesoft, Open Dental]
+    cms_dominant: WordPress
+    hosting: "Shared hosting"
+    high_value_paths:
+      - /wp-content/debug.log
+      - /wp-json/wp/v2/users
+      - /xmlrpc.php
+      - /patient-portal
+      - /new-patient
+      - /insurance
+    pii_risk: "PHI (patient names, DOB, insurance IDs, medical history notes)."
+
+  fire-restoration:
+    platforms: [WordPress, ServiceTitan, Jobber, Housecall Pro]
+    cms_dominant: WordPress
+    hosting: "Shared hosting"
+    high_value_paths:
+      - /wp-content/debug.log
+      - /wp-content/uploads/
+      - /wp-json/wp/v2/users
+      - /xmlrpc.php
+      - /emergency
+      - /claim
+    pii_risk: "Emergency intake PII (property addresses, insurance claims, damage photos)."
+
+  gyms:
+    platforms: [WordPress, Mindbody, Mariana Tek, ClubReady, Glofox]
+    cms_dominant: WordPress
+    hosting: "Shared hosting, Mindbody SaaS"
+    high_value_paths:
+      - /wp-json/wp/v2/users
+      - /xmlrpc.php
+      - /schedule
+      - /members
+      - /book
+      - /api/schedule
+    pii_risk: "Booking API IDOR, Mindbody API keys in JS, member PII."
+
+  hvac:
+    platforms: [WordPress]
+    cms_dominant: WordPress
+    hosting: "Shared hosting, local web agencies"
+    high_value_paths:
+      - /wp-content/debug.log
+      - /wp-content/uploads/
+      - /wp-json/wp/v2/users
+      - /xmlrpc.php
+      - /emergency
+      - /maintenance-plan
+    pii_risk: "Emergency booking PII, equipment serial numbers, maintenance plan customer data."
+
+  landscaping:
+    platforms: [WordPress, Wix, Squarespace]
+    cms_dominant: WordPress
+    hosting: "Shared hosting (GoDaddy, HostGator, SiteGround)"
+    high_value_paths:
+      - /wp-content/debug.log
+      - /wp-content/uploads/
+      - /wp-json/wp/v2/users
+      - /xmlrpc.php
+      - /estimate
+    pii_risk: "Photo gallery EXIF geolocation, booking form PII."
+
+  laundromats:
+    platforms: [WordPress, Cents, LaundryLocker, Washlava, CleanCloud]
+    cms_dominant: WordPress
+    hosting: "Shared hosting"
+    high_value_paths:
+      - /wp-content/debug.log
+      - /wp-json/wp/v2/users
+      - /xmlrpc.php
+      - /schedule-pickup
+      - /order-online
+      - /pricing-calculator
+    pii_risk: "Customer order data, pickup/delivery addresses, payment info."
+
+  mattress-stores:
+    platforms: [Shopify, WooCommerce, BigCommerce]
+    cms_dominant: Shopify
+    hosting: "Shopify, shared hosting"
+    high_value_paths:
+      - /wp-json/wc/v3/
+      - /financing
+      - /as-low-as
+      - /stores
+      - /api/stores
+    pii_risk: "Financing API keys (Affirm/Klarna), WooCommerce customer data, store locator PII."
+
+  moving-companies:
+    platforms: [WordPress, MovePoint, MovingPro]
+    cms_dominant: WordPress
+    hosting: "Shared hosting (GoDaddy, HostGator)"
+    high_value_paths:
+      - /wp-content/debug.log
+      - /wp-content/uploads/
+      - /wp-json/wp/v2/users
+      - /xmlrpc.php
+      - /quote
+      - /track
+    pii_risk: "Quote forms with current/new addresses, inventory lists, move dates."
+
+  pet-grooming:
+    platforms: [WordPress, Gingr, PetExec, TimeToPet]
+    cms_dominant: WordPress
+    hosting: "Shared hosting"
+    high_value_paths:
+      - /wp-content/debug.log
+      - /wp-json/wp/v2/users
+      - /xmlrpc.php
+      - /book
+      - /client
+      - /schedule
+    pii_risk: "Home access codes in logs, pet medical info, booking IDOR."
+
+  plumbing:
+    platforms: [WordPress, Wix, Squarespace]
+    cms_dominant: WordPress
+    hosting: "Shared hosting, SEO partner hosting"
+    high_value_paths:
+      - /wp-content/debug.log
+      - /wp-content/uploads/
+      - /wp-json/wp/v2/users
+      - /xmlrpc.php
+      - /emergency
+      - /financing
+    pii_risk: "Emergency booking PII, financing applications (SSN, DOB), drain camera videos."
+
+  pools:
+    platforms: [WordPress]
+    cms_dominant: WordPress
+    hosting: "Shared hosting (GoDaddy, HostGator, SiteGround)"
+    high_value_paths:
+      - /wp-content/debug.log
+      - /wp-content/uploads/
+      - /wp-json/wp/v2/users
+      - /xmlrpc.php
+      - /portal
+      - /service
+    pii_risk: "Pool build photo EXIF geolocation, client portal without auth."
+
+  property-management:
+    platforms: [WordPress, AppFolio, Buildium, Yardi, Entrata]
+    cms_dominant: WordPress
+    hosting: "Shared hosting, PM SaaS platforms"
+    high_value_paths:
+      - /wp-content/debug.log
+      - /wp-content/uploads/
+      - /wp-json/wp/v2/users
+      - /xmlrpc.php
+      - /tenant
+      - /resident
+      - /maintenance
+    pii_risk: "SSN on credit applications, bank accounts for ACH, lease documents in public dirs."
+
+  roofing:
+    platforms: [WordPress]
+    cms_dominant: WordPress
+    hosting: "Shared hosting, SEO partner hosting (GoDaddy/HostGator)"
+    high_value_paths:
+      - /wp-content/debug.log
+      - /wp-content/uploads/
+      - /wp-json/wp/v2/users
+      - /xmlrpc.php
+      - /estimate
+      - /claim-upload
+    pii_risk: "CSV exports with leads (names, addresses, phone, insurance claims)."
+
+  salons:
+    platforms: [WordPress, Vagaro, Mindbody, Square Appointments]
+    cms_dominant: WordPress
+    hosting: "Shared hosting, booking SaaS"
+    high_value_paths:
+      - /wp-json/wp/v2/users
+      - /xmlrpc.php
+      - /book
+      - /services
+      - /wp-content/debug.log
+    pii_risk: "Booking IDOR exposing client PII, booking API keys in JS."
+
+  smb-services:
+    platforms: [WordPress]
+    cms_dominant: WordPress
+    hosting: "Shared hosting"
+    high_value_paths:
+      - /wp-content/debug.log
+      - /wp-json/wp/v2/users
+      - /xmlrpc.php
+      - /wp-content/uploads/
+    pii_risk: "Generic SMB service provider PII (contact forms, debug logs)."
+
+  solar-installers:
+    platforms: [WordPress]
+    cms_dominant: WordPress
+    hosting: "Shared hosting"
+    high_value_paths:
+      - /wp-content/debug.log
+      - /wp-json/wp/v2/users
+      - /xmlrpc.php
+      - /estimate
+      - /quote
+      - /wp-content/uploads/
+    pii_risk: "Energy usage data (address, roof specs, consumption patterns) in lead forms."
+
+  tree-services:
+    platforms: [WordPress, Wix]
+    cms_dominant: WordPress
+    hosting: "Shared hosting"
+    high_value_paths:
+      - /wp-content/debug.log
+      - /wp-content/uploads/
+      - /wp-json/wp/v2/users
+      - /xmlrpc.php
+      - /estimate
+    pii_risk: "Photo gallery EXIF, emergency tree removal booking PII."

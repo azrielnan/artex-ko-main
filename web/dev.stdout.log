@@ -1,0 +1,23 @@
+
+> artex-web@2.2.0 dev
+> next dev --hostname 127.0.0.1
+
+▲ Next.js 16.2.9 (Turbopack)
+- Local:         http://127.0.0.1:3000
+- Network:       http://127.0.0.1:3000
+✓ Ready in 513ms
+
+ HEAD / 307 in 3.1s (next.js: 2.7s, proxy.ts: 173ms, application-code: 176ms)
+ GET / 307 in 76ms (next.js: 4ms, proxy.ts: 5ms, application-code: 67ms)
+ GET /function/tasks 200 in 2.5s (next.js: 2.4s, proxy.ts: 15ms, application-code: 127ms)
+ GET / 307 in 106ms (next.js: 3ms, proxy.ts: 5ms, application-code: 98ms)
+ GET /function/tasks 200 in 72ms (next.js: 4ms, proxy.ts: 5ms, application-code: 63ms)
+ GET / 307 in 55ms (next.js: 3ms, proxy.ts: 8ms, application-code: 44ms)
+ GET /function/tasks 200 in 48ms (next.js: 3ms, proxy.ts: 4ms, application-code: 40ms)
+ GET /system/settings 200 in 1114ms (next.js: 1088ms, proxy.ts: 6ms, application-code: 20ms)
+ GET /system/settings 200 in 30ms (next.js: 3ms, proxy.ts: 5ms, application-code: 21ms)
+ GET /system/intercept/approvals 200 in 745ms (next.js: 709ms, proxy.ts: 4ms, application-code: 33ms)
+ GET /system/llm 200 in 558ms (next.js: 530ms, proxy.ts: 4ms, application-code: 24ms)
+ GET /system/llm? 200 in 62ms (next.js: 3ms, proxy.ts: 5ms, application-code: 54ms)
+ GET /function/tasks 200 in 20ms (next.js: 3ms, proxy.ts: 5ms, application-code: 12ms)
+[?25h

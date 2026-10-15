@@ -1,0 +1,20 @@
+ARTEX 中文版便携分发包
+======================
+
+启动：双击「启动.bat」
+地址：http://127.0.0.1:8787/
+
+首次启动会自动：
+1. 初始化便携 PostgreSQL 数据库；
+2. 创建 artex 数据库；
+3. 启动 ARTEX 后端；
+4. 用默认浏览器打开控制台；
+5. 在初始化页面设置管理员密码。
+
+本包不需要 Go、Node.js、Docker 或手动安装 PostgreSQL。
+如果系统缺少 Microsoft VC++ 运行库，启动脚本会尝试使用 winget 自动安装。
+
+停止：关闭 ARTEX 窗口或运行 data\stop-postgres.bat（仅停止数据库）。
+日志：data\artex.stdout.log、data\artex.stderr.log、data\postgres.log
+数据：data\pgdata\（不要删除，否则会丢失任务和配置）
+技能：skills\（已包含合并技能库和 recon-skills 技能库）

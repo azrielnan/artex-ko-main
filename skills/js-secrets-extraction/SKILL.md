@@ -1,0 +1,287 @@
+---
+name: js-secrets-extraction
+description: 中文触发：JS 里找密钥、前端源码密钥 ｜ Analyze JS bundles and source maps for
+  hardcoded secrets, API keys, JWTs, and internal endpoints
+version: 1.1.0
+revision_date: 2026-07-25
+license: MIT
+category: recon
+tags:
+  - js
+  - secrets
+  - API-key
+  - jwt
+  - source-map
+  - recon
+---
+
+# JS Bundle & Source Map Analysis -- Secret Extraction
+
+## When to Use
+
+- **ALWAYS** after initial web enumeration
+- When you find modern SPA (React, Angular, Vue)
+- When target uses Firebase, Supabase, Auth0
+- Higher yield than directory scanning on many targets
+
+## Why Analyze JS Bundles
+
+Modern JavaScript bundles (Webpack, Vite, esbuild) often contain:
+- Hardcoded API keys and tokens
+- Internal API URLs
+- Firebase, Auth0, Supabase configurations
+- Environment variables (VITE_*, REACT_APP_*, NEXT_PUBLIC_*)
+- Internal routes
+
+## Bundle Download and Analysis
+
+```bash
+curl --max-time 30 --connect-timeout 10 -s "https://target.com" > index.html
+grep -Eo 'src="[^"]*\.js"' index.html | cut -d'"' -f2 | while read js; do
+  curl --max-time 30 --connect-timeout 10 -s "https://target.com$js" > "$(basename $js)"
+done
+
+# Search for secrets in bundles
+grep -rEn "(apiKey|api_key|API_KEY|token|secret|password|clientId|client_id|auth0|firebase|supabase)[\"'\"]?[[:space:]]*[:=][[:space:]]*[\"'\'][^\"'\']{8,}" *.js
+```
+
+## Source Map Reconstruction
+
+```bash
+curl --max-time 30 --connect-timeout 10 -sI "https://target.com/assets/index-abc123.js.map"
+curl --max-time 30 --connect-timeout 10 -sI "https://target.com/static/js/main.12345.js.map"
+
+# If HTTP 200, use for reconstruction:
+# https://unminify.com
+# https://source-map-visualization.netlify.app
+```
+
+**Real-world case**: Enterprise Angular SPA admin, 2 JS bundles (250KB each) exposed:
+- Internal API URL (apiv3.empresa.com.br)
+- Firebase API key (AIzaSy...2GXA)
+- Encryption keys (AD5oDjsJaTJOzLe1Llj9mz)
+- Cloudinary upload endpoint
+
+## Port-Specific URL Analysis
+
+Modern deployments often serve the main SPA on port 443 and admin/API on separate ports (8080, 8081, 8084). **Always check JS bundles on ALL discovered ports:**
+
+```bash
+# Check source maps on every open port
+for port in 443 8080 8081 8084; do
+  curl --max-time 30 --connect-timeout 10 -sI "https://target.com:$port/static/js/main.*.js.map" 2>/dev/null
+  curl --max-time 30 --connect-timeout 10 -sI "https://target.com:$port/assets/index-*.js.map" 2>/dev/null
+done
+```
+
+Source maps on administrative or alternate-port applications may expose a
+different route and configuration set from the public SPA. Analyze each
+authorized application independently.
+
+## Admin Portal JS Analysis Pattern
+
+When you find an admin portal on a separate port, the JS bundle often contains different secrets than the main site:
+
+```python
+base = "https://target.com:8080"  # Admin portal
+js = requests.get(f"{base}/static/js/main.*.js").text
+
+# 1. Extract ALL API URLs
+api_urls = re.findall(r'https?://[^\"\'[[:space:]]\\n,)>\\]]+', js)
+# 2. Find base API URL (the backend this admin talks to)
+# 3. Look for hardcoded credentials, API keys, auth patterns
+# 4. Extract route paths for the admin app
+routes = re.findall(r'[\"\'](/[a-zA-Z0-9_/.-]*(?:admin|chat|bot|message|user|auth|login|token|config|setting|dashboard|hospital|pharmacy|drug|payment)[a-zA-Z0-9_/.-]*)[\"\']', js, re.IGNORECASE)
+```
+
+## Source Map Content Analysis (1,200+ Files)
+
+When source maps are available, analyze the `sourcesContent` array for hardcoded secrets:
+
+```python
+import json, re
+data = json.loads(open("bundle.js.map").read())
+all_source = " ".join(data.get("sourcesContent", []))
+
+# Search for credentials in the original source
+patterns = {
+    "password": r'[\"\']([^\"\']*(?:password|passwd|pwd)[^\"\']*)[\"\']\s*[:=]\s*[\"\']([^\"\']+)[\"\']',
+    "token": r'[\"\']([^\"\']*(?:token|jwt|api_key|apikey|secret)[^\"\']*)[\"\']\s*[:=]\s*[\"\']([^\"\']+)[\"\']',
+}
+for name, pat in patterns.items():
+    matches = re.findall(pat, all_source, re.IGNORECASE)
+    if matches:
+        print(f"[{name}] {matches[:5]}")
+```
+- Cloudinary upload endpoint
+
+## Secret Regex Patterns Catalog
+
+```python
+import re
+
+patterns = {
+    "Firebase API Key": r'apiKey:\s*[\"\']([^\"\']{30,})',
+    "AWS Key": r'(?:AKIA|ASIA)[A-Z0-9]{16}',
+    "Google API Key": r'AIza[0-9A-Za-z\\-_]{35}',
+    "JWT": r'eyJ[A-Za-z0-9_\\-]{20,}\.[A-Za-z0-9_\\-]{20,}\.[A-Za-z0-9_\\-]{10,}',
+    "Mercado Pago": r'APP_USR-[a-f0-9]{8,}',
+    "Stripe": r'(?:sk_live|pk_live)_[A-Za-z0-9]{24,}',
+    "Auth0 Domain": r'(?:domain|auth0_domain):\s*[\"\']([^\"\']+\.auth0\.com)',
+    "Auth0 Client ID": r'(?:client_id|clientId|AUTH0_CLIENT_ID):\s*[\"\']([^\"\']{20,})',
+    "Supabase URL": r'(?:supabaseUrl|SUPABASE_URL):\s*[\"\'](https://[^\"\']+\.supabase\.co)',
+    "Supabase Key": r'(?:supabaseKey|anonKey|SUPABASE_ANON_KEY):\s*[\"\'](eyJ[A-Za-z0-9_\\-]+\.[A-Za-z0-9_\\-]+\.[A-Za-z0-9_\\-]+)',
+    "Heroku": r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}',
+    "Generic Secret": r'(?:secret|password|token|key):\s*[\"\']([^\"\']{8,})',
+}
+```
+
+## Batch Bundle Download + Grep
+
+```python
+import requests, re, json
+
+base = "https://target.com"
+html = requests.get(base).text
+
+# Extract all JS URLs
+js_urls = re.findall(r'src="([^"]*\.js)"', html)
+for js_url in js_urls:
+    if js_url.startswith("/"):
+        js_url = base + js_url
+    content = requests.get(js_url).text
+    for name, pattern in patterns.items():
+        matches = re.findall(pattern, content)
+        for m in matches:
+            if isinstance(m, tuple):
+                m = m[0]
+            if len(m) > 6:
+                print(f"[{name}] {m[:80]}")
+```
+
+## Pitfalls
+
+| Issue | Solution |
+|-------|----------|
+| Bundles too large | Use grep -Eo with specific patterns |
+| Minified code (1 char names) | Use source maps for reconstruction |
+| False positive matches | Validate keys by testing API endpoint |
+| Rate limiting | Add delays between bundle downloads |
+
+---
+
+## Backend URL Discovery
+
+JS bundles frequently leak production backend URLs, enabling direct API attacks bypassing CDN/WAF:
+
+```bash
+# Platform-specific backend URL patterns
+grep -Eo 'https?://[a-zA-Z0-9.\-]+\.(fly\.dev|azurewebsites\.net|onrender\.com|vercel\.app|netlify\.app)[^"'\'' ]{0,40}' /tmp/*.js
+grep -Eo 'https?://[a-zA-Z0-9.\-]+\.(supabase\.co|r2\.dev|blob\.vercel-storage\.com)[^"'\'' ]{0,40}' /tmp/*.js
+
+# Edge function URLs
+grep -Eo 'functions/v1/[a-zA-Z0-9_\-]+' /tmp/*.js
+
+# Internal API paths
+grep -Eo '["\x60]/api/v1/[a-zA-Z0-9_\-/]+["\x60]' /tmp/*.js
+```
+
+### Real Field Patterns
+| Pattern | Platform | Example | Secret? |
+|---------|----------|---------|---------|
+| `*.fly.dev` | Fly.io | `ht-prod-backend.fly.dev` | ✅ Backend URL |
+| `*.azurewebsites.net` | Azure | `consigpro-api-prod-...` | ✅ Backend URL |
+| `*.onrender.com` | Render | `clickcity-api.onrender.com` | ✅ Backend URL |
+| `*.supabase.co` | Supabase | `jxhvjufqtabpeieyhkgk.supabase.co` | ✅ Anon key is public; backend URL is intel |
+| `*.r2.dev` | Cloudflare R2 | `pub-xxx.r2.dev` | ✅ Storage URL |
+| `functions/v1/*` | Supabase Edge | `provision-openrouter-key` | ✅ Endpoint name |
+| `dpl_*` | Vercel DPL | `dpl_BCoyPsxxYLZ...` | ❌ **NOT a secret** — public deploy ID |
+
+## Verification
+
+```bash
+# Test Firebase API key
+curl --max-time 30 --connect-timeout 10 -s "https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=AIza..."
+# Test Supabase anon key
+curl --max-time 30 --connect-timeout 10 -s "https://PROJECT.supabase.co/rest/v1/users?limit=1" -H "apikey: ANON_KEY" -H "Authorization: Bearer ANON_KEY"
+```
+
+### Phase 5 — Source Map Exploitation
+
+Recover full pre-compiled source code when `.js.map` files are left in production:
+
+```bash
+# Find .map files via Wayback Machine
+curl --max-time 30 --connect-timeout 10 -s "https://web.archive.org/cdx/search/cdx?url=*.target.com/*&collapse=urlkey&output=text&fl=original&filter=original:.*\.js\.map$" \
+  | sort -u > map_urls.txt
+
+# Download and extract source
+wget https://target.com/static/app.js.map
+node -e "
+const map = require('./app.js.map');
+map.sources.forEach((src, i) => {
+  const fs = require('fs');
+  fs.writeFileSync(src.split('/').pop(), map.sourcesContent[i]);
+});
+print('Extracted ' + map.sources.length + ' source files');
+"
+
+# Quick check: does a JS file have an available map?
+curl --max-time 30 --connect-timeout 10 -skI "https://target.com/static/app.js.map" | grep "200\|Content-Type"
+```
+
+### Phase 6 — Deep JS Crawling
+
+Crawl JS files recursively for embedded URLs, APIs, and IPs:
+
+```bash
+# lazyegg — crawls JS files for links, APIs, IPs
+python3 lazyegg.py https://target.com
+python3 lazyegg.py https://target.com/js/auth.js
+
+# Combine with waybackurls for deep coverage
+waybackurls target.com \
+  | grep '\.js$' \
+  | awk -F '?' '{print $1}' \
+  | sort -u \
+  | xargs -I{} bash -c 'python3 lazyegg.py "{}" --js_urls --domains --ips' \
+  > lazyegg_output.txt
+
+# subjs — extract JS URLs from any URL list
+cat all_urls.txt | subjs | tee js_files_full.txt
+```
+
+### Phase 7 — Per-File AI-Assisted Code Review
+
+JS bundles are source code — even minified. A disciplined per-file (per-chunk) review finds what autonomous agents miss:
+
+```bash
+# 1. Download all JS chunks
+curl --max-time 30 --connect-timeout 10 -sk "https://target.com" | grep -Eo 'src="[^"]+\.js[^"]*"' | \
+  cut -d'"' -f2 | while read js; do
+    curl --max-time 30 --connect-timeout 10 -sk "$js" -o "chunks/$(basename $js)"
+  done
+
+# 2. Per-chunk pattern review for dangerous sinks
+for chunk in chunks/*.js; do
+  echo "=== $chunk ==="
+  # eval / new Function (arbitrary code execution)
+  grep -Eon 'eval\s*\(|new\s+Function\s*\(' "$chunk"
+  # Hardcoded API keys/secrets
+  grep -Eon '(?:api[_-]?key|secret|token|password|bearer)\s*[:=]\s*["\x27][^"\x27]{8,}' "$chunk"
+  # postMessage without origin check
+  grep -Eon 'postMessage\s*\(' "$chunk"
+  # Prototype pollution patterns
+  grep -Eon '__proto__|constructor\.prototype' "$chunk"
+  # Debug/test code in production
+  grep -Eoin 'debug|test|staging|localhost' "$chunk"
+  # Client-trusted flags
+  grep -Eon '(?:isAdmin|isVip|isPremium|isModerator|role)\s*[=:]\s*true' "$chunk"
+done > ai_review_findings.txt
+
+# 3. Review findings — each is a CANDIDATE, not confirmed
+grep -c "===" ai_review_findings.txt  # files reviewed
+grep -c ":" ai_review_findings.txt     # candidate findings
+```
+
+Key insight: autonomous agents told "find bugs" in a whole codebase burn budget and miss things. A guaranteed per-file pass with fixed output structure produces repeatable hits. Each finding still needs manual PoC verification.
