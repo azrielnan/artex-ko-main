@@ -28,6 +28,8 @@ ARTEX 将任务编排、资产管理、探索图、流量记录、人工审批�
 
 [打开 ARTEX 中文 Demo](https://azrielnan.github.io/artex-ko-main/)
 
+外部参考项目、技能来源、集成边界及版本变更记录见[参考项目与集成说明](docs/参考项目与集成说明.md)和[更新日志](CHANGELOG.zh.md)。
+
 Demo 使用明确标注的模拟数据，不连接真实目标，也不会读取你的 API Key。项目仓库和发布包入口：
 
 - [GitHub 仓库](https://github.com/azrielnan/artex-ko-main)
@@ -139,12 +141,12 @@ export ANTHROPIC_API_KEY=<your-key>
 
 逆向模式默认关闭，不会在启动 ARTEX 时自动下载或运行第三方分析器。启用步骤：
 
-1. 安装 Node.js **22.19+、24.11+ 或 26+**。
+1. 使用 GitHub Release 分发包时无需另装 Node.js；源码开发或需要运行外部分析器时，再准备 Node.js **22.19+、24.11+ 或 26+**。
 2. 在「系统设置 → MCP」中启用预置的 `REA` 服务。GitHub Release 分发包优先使用包内 Node.js/REA 运行时；源码环境没有内置运行时时才回退到 `npx -y rea-agents@6.5.0 mcp`。
 3. 按 [REA 中文文档](https://github.com/morluto/rea/blob/main/docs/readme/README_zh.md) 配置具体分析器及其依赖。
 4. 在聊天页切换到「逆向分析」，上传或指定本地材料后开始分析。
 
-内置技能说明见 [`skills/rea-reverse-engineering/SKILL.md`](skills/rea-reverse-engineering/SKILL.md)。REA 及其分析器是第三方软件，不随 ARTEX 重新分发，请以其上游许可证和版本说明为准。
+内置技能说明见 [`skills/rea-reverse-engineering/SKILL.md`](skills/rea-reverse-engineering/SKILL.md)。REA 与 Node.js 会随 GitHub Release 分发包按上游许可证提供；外部分析器不随 ARTEX 重新分发，请以各上游许可证和版本说明为准。
 
 ## 主要能力
 

@@ -21,6 +21,8 @@
 
 项目仓库：[azrielnan/artex-ko-main](https://github.com/azrielnan/artex-ko-main) · [版本发布](https://github.com/azrielnan/artex-ko-main/releases)
 
+上游项目、技能来源、第三方组件边界及本项目版本变更见[参考项目与集成说明](docs/参考项目与集成说明.md)。
+
 ---
 
 ## 对话模式：安全测试与逆向分析
