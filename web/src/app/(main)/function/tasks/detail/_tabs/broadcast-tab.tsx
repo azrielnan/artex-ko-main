@@ -156,8 +156,8 @@ function prettyPayload(raw: string | undefined, emptyLabel: string): string {
   }
 }
 
-const dayFmt = new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "short" });
-const clockFmt = new Intl.DateTimeFormat("ko-KR", {
+const dayFmt = new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", weekday: "short" });
+const clockFmt = new Intl.DateTimeFormat("zh-CN", {
   hour: "2-digit",
   minute: "2-digit",
   second: "2-digit",
@@ -244,7 +244,7 @@ function RelatedNodeCard({ node, assets }: { node: TaskNode; assets: FindingAsse
       <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
         <span>{t("fieldType", { label: t(`kind.${kindKeyOf(kind)}`) })}</span>
         <span>{t("fieldSource", { origin: node.origin || "system" })}</span>
-        <span>{Number.isNaN(ts) ? node.ts : new Date(ts).toLocaleString("ko-KR")}</span>
+        <span>{Number.isNaN(ts) ? node.ts : new Date(ts).toLocaleString("zh-CN")}</span>
       </div>
       <p className="line-clamp-4 text-xs break-words">{summary || t("noSummary")}</p>
       <AssetList assets={assets} dense />
@@ -399,7 +399,7 @@ function BroadcastRow({
               </span>
               <span>{t("fieldType", { label: t(`kind.${kindKeyOf(kind)}`) })}</span>
               <span>{t("fieldSource", { origin: node.origin || "system" })}</span>
-              <span>{Number.isNaN(ts) ? node.ts : new Date(ts).toLocaleString("ko-KR")}</span>
+              <span>{Number.isNaN(ts) ? node.ts : new Date(ts).toLocaleString("zh-CN")}</span>
             </div>
             {node.state === "deleted" && node.delete_reason && (
               <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs">

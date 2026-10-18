@@ -103,6 +103,12 @@ func TestCompareVersions(t *testing.T) {
 	}
 }
 
+func TestUpdateSourceRepository(t *testing.T) {
+	if Repo != "azrielnan/artex-ko-main" {
+		t.Fatalf("update source repository = %q, want %q", Repo, "azrielnan/artex-ko-main")
+	}
+}
+
 func TestResolvePathsNaming(t *testing.T) {
 	p, err := ResolvePaths()
 	if err != nil {

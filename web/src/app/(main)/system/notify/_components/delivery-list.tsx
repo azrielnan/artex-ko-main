@@ -183,5 +183,5 @@ export function DeliveryList({ channels }: { channels: NotificationChannel[] }) 
 function formatTime(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("ko-KR", { hour12: false });
+  return d.toLocaleString("zh-CN", { hour12: false });
 }

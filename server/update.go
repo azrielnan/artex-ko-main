@@ -20,17 +20,17 @@ import (
 // 重启不由本进程完成：暂存好新版本后进程以 selfupdate.ExitRestart 退出，
 // 由守护脚本（start.sh / start.bat，Docker 下是 ENTRYPOINT）重新拉起。
 
-// 사용자에게 노출되는 업데이트 메시지(SSE 진행 메시지·검사 사유·에러 응답).
+// 面向用户的更新消息（SSE 进度、检查原因和错误响应）。
 // 프런트엔드(system/settings 의 update-card)가 progress.message·reason·writeErr
-// 본문을 그대로 렌더하므로 한국어로 둔다. 로그·중국어 주석은 Z2(로그 최하위)라 범위 밖.
+// 本文会被前端原样显示，因此统一使用简体中文。
 const (
-	updateMsgPreparing          = "준비 중…"
-	updateMsgFailed             = "업데이트 실패"
-	updateMsgStaged             = "새 버전이 준비되었습니다. 재시작 중…"
-	updateErrNotReleaseFmt      = "현재 버전 %q 은(는) 정식 릴리스 버전이 아니므로 원클릭 업데이트를 사용할 수 없습니다"
-	updateErrAlreadyLatestFmt   = "이미 최신 버전입니다 (%s)"
-	updateErrInProgress         = "이미 업데이트가 진행 중입니다"
-	updateErrRollbackInProgress = "업데이트가 진행 중이어서 롤백할 수 없습니다"
+	updateMsgPreparing          = "正在准备…"
+	updateMsgFailed             = "更新失败"
+	updateMsgStaged             = "新版本已准备就绪，正在重启…"
+	updateErrNotReleaseFmt      = "当前版本 %q 不是正式发布版本，无法使用一键更新"
+	updateErrAlreadyLatestFmt   = "已经是最新版本（%s）"
+	updateErrInProgress         = "更新正在进行中"
+	updateErrRollbackInProgress = "更新正在进行，暂时无法回滚"
 )
 
 // restartCh 在升级就绪或回滚完成后关闭，main 收到后以 ExitRestart 退出。

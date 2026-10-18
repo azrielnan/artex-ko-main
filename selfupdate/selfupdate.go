@@ -56,7 +56,7 @@ type Paths struct {
 func ResolvePaths() (Paths, error) {
 	exe, err := os.Executable()
 	if err != nil {
-		return Paths{}, fmt.Errorf("실행 파일 위치 확인 실패: %w", err)
+		return Paths{}, fmt.Errorf("获取可执行文件位置失败：%w", err)
 	}
 	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
 		exe = resolved

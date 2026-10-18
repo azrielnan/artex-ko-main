@@ -9,33 +9,45 @@ import (
 	"testing"
 )
 
-// F3b(update.go): 셀프 업데이트 엔드포인트의 사용자 노출 문구가 한국어인지 지키는 회귀 테스트.
-// 프런트엔드(system/settings 의 update-card)가 progress.message·reason·writeErr 본문을 그대로
-// 렌더하므로, 이 문구가 중국어로 되돌아가면 업데이트 화면에 중국어 토스트·진행 메시지가 다시 뜬다.
-// assertKoreanError·decodeErrorField 헬퍼는 선행 F3b 테스트 파일(같은 package server)에서 재사용한다.
+func assertChineseUpdateMessage(t *testing.T, label, msg string) {
+	t.Helper()
+	hanzi, hangul := false, false
+	for _, r := range msg {
+		switch {
+		case r >= 0x4E00 && r <= 0x9FFF:
+			hanzi = true
+		case r >= 0xAC00 && r <= 0xD7A3:
+			hangul = true
+		}
+	}
+	if !hanzi || hangul {
+		t.Errorf("%s: 应为中文且不含韩文: %q", label, msg)
+	}
+}
+
+// The update endpoint exposes these messages directly in the settings UI; keep them Chinese.
 
 func TestUpdateMessageConstantsLocalized(t *testing.T) {
-	assertKoreanError(t, "updateMsgPreparing", updateMsgPreparing)
-	assertKoreanError(t, "updateMsgFailed", updateMsgFailed)
-	assertKoreanError(t, "updateMsgStaged", updateMsgStaged)
-	assertKoreanError(t, "updateErrInProgress", updateErrInProgress)
-	assertKoreanError(t, "updateErrRollbackInProgress", updateErrRollbackInProgress)
+	assertChineseUpdateMessage(t, "updateMsgPreparing", updateMsgPreparing)
+	assertChineseUpdateMessage(t, "updateMsgFailed", updateMsgFailed)
+	assertChineseUpdateMessage(t, "updateMsgStaged", updateMsgStaged)
+	assertChineseUpdateMessage(t, "updateErrInProgress", updateErrInProgress)
+	assertChineseUpdateMessage(t, "updateErrRollbackInProgress", updateErrRollbackInProgress)
 
 	// 형식 문자열 상수는 플레이스홀더를 채운 뒤 검사한다(%q/%s 가 치환되고 한자 0).
 	notRelease := fmt.Sprintf(updateErrNotReleaseFmt, "v0.0.0-dev")
-	assertKoreanError(t, "updateErrNotReleaseFmt", notRelease)
+	assertChineseUpdateMessage(t, "updateErrNotReleaseFmt", notRelease)
 	if !strings.Contains(notRelease, "v0.0.0-dev") {
 		t.Fatalf("updateErrNotReleaseFmt: 버전 플레이스홀더가 치환되지 않았습니다: %q", notRelease)
 	}
 	latest := fmt.Sprintf(updateErrAlreadyLatestFmt, "v1.2.3")
-	assertKoreanError(t, "updateErrAlreadyLatestFmt", latest)
+	assertChineseUpdateMessage(t, "updateErrAlreadyLatestFmt", latest)
 	if !strings.Contains(latest, "v1.2.3") {
 		t.Fatalf("updateErrAlreadyLatestFmt: 버전 플레이스홀더가 치환되지 않았습니다: %q", latest)
 	}
 }
 
-// begin/finish 가 SSE 로 내보내는 진행 메시지가 한국어 상수로 설정되는지 실제 코드 경로로 확인한다.
-// 전역 updHub 오염을 피하려 로컬 인스턴스를 쓴다(DB·네트워크 불필요).
+// Verify the SSE progress messages on the actual begin/finish path using a local hub.
 func TestUpdateProgressMessagesLocalized(t *testing.T) {
 	h := &updateHub{subs: map[chan updateProgress]struct{}{}}
 
@@ -69,7 +81,7 @@ func TestUpdateProgressMessagesLocalized(t *testing.T) {
 	}
 }
 
-// updateRollback 의 "진행 중이라 롤백 불가" 409 응답이 한국어인지 DB 없이 실제 HTTP 로 확인한다.
+// Verify the rollback-in-progress 409 response over HTTP without a database.
 func TestUpdateRollbackInProgressLocalized(t *testing.T) {
 	updHub.mu.Lock()
 	prev := updHub.running
@@ -90,7 +102,7 @@ func TestUpdateRollbackInProgressLocalized(t *testing.T) {
 		t.Fatalf("상태 코드 409 기대, 실제 %d (본문 %s)", rec.Code, rec.Body.Bytes())
 	}
 	msg := decodeErrorField(t, rec.Body.Bytes())
-	assertKoreanError(t, "updateRollback 진행 중 409", msg)
+	assertChineseUpdateMessage(t, "updateRollback 进行中 409", msg)
 	if msg != updateErrRollbackInProgress {
 		t.Fatalf("롤백 거부 문구 불일치: %q", msg)
 	}

@@ -127,7 +127,7 @@ export function FindingRetestPanel({
                       : t(`status.${item.status}`)}
                   </Badge>
                   <span className="text-muted-foreground text-xs">
-                    #{item.id} · {new Date(item.created_at).toLocaleString("ko-KR")}
+                    #{item.id} · {new Date(item.created_at).toLocaleString("zh-CN")}
                   </span>
                   {item.conversation_id != null ? (
                     <Button asChild variant="ghost" size="sm" className="ml-auto">

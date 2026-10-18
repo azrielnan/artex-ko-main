@@ -59,6 +59,25 @@
       "title": "ARTEX 使用须知与免责声明"
     }
   },
+  "layoutControls": {
+    "title": "界面偏好",
+    "description": "自定义工作台的布局和显示偏好。",
+    "themePreset": {
+      "label": "主题预设",
+      "placeholder": "选择预设",
+      "default": "默认",
+      "brutalist": "粗野主义",
+      "softPop": "柔和活泼",
+      "tangerine": "柑橘色"
+    },
+    "fonts": { "label": "字体", "placeholder": "选择字体" },
+    "themeMode": { "label": "主题模式", "light": "浅色", "dark": "深色", "system": "跟随系统" },
+    "pageLayout": { "label": "页面布局", "centered": "居中", "fullWidth": "全宽" },
+    "navbar": { "label": "导航栏行为", "sticky": "固定", "scroll": "随页面滚动" },
+    "sidebar": { "label": "侧边栏样式", "inset": "内嵌", "sidebar": "侧边栏", "floating": "浮动" },
+    "collapse": { "label": "侧边栏折叠模式", "icon": "图标", "offcanvas": "抽屉" },
+    "restore": "恢复默认设置"
+  },
   "dashboard": {
     "activeModel": "激活模型",
     "activeTasks": "活跃任务",

@@ -40,7 +40,7 @@ type Translator = ReturnType<typeof useTranslations>;
 
 function fmtTime(value?: string) {
   if (!value) return "—";
-  return new Date(value).toLocaleString("ko-KR", {
+  return new Date(value).toLocaleString("zh-CN", {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",

@@ -546,7 +546,7 @@ export function AgentEditor({ agentKey, onSaved }: { agentKey: string; onSaved?:
                   {viewVer?.note || tr("version.noNote")}
                   {viewVer?.ts && (
                     <span className="ml-2 text-muted-foreground/60">
-                      {new Date(viewVer.ts).toLocaleString("ko-KR")}
+                      {new Date(viewVer.ts).toLocaleString("zh-CN")}
                     </span>
                   )}
                 </DialogDescription>

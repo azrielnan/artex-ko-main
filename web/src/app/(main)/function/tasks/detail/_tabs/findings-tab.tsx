@@ -110,7 +110,7 @@ function Row({
           <StatusBadge domain="finding" value={f.status} dot />
         )}
         <span className="hidden shrink-0 text-xs text-muted-foreground md:block">
-          {new Date(f.ts).toLocaleString("ko-KR")}
+          {new Date(f.ts).toLocaleString("zh-CN")}
         </span>
         {f.finding_id && (
           <Link
