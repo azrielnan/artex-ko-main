@@ -155,7 +155,7 @@ CGO_ENABLED=0 go build -tags embedui -o artex ./cmd/artex
 
 ```bash
 ./build.sh --release
-# 产物：dist/artex-0.3.3-*.zip
+# 产物：dist/artex-<版本>-<平台>-<架构>.zip，以及 SHA256SUMS
 ```
 
 UPX 自解压二进制可能与部分 Linux 内核、虚拟化环境或安全策略不兼容，因此默认不启用。可用 `ARTEX_TARGETS` 自定义目标；确认目标运行环境兼容时，可显式传入 `--upx` 进一步缩小二进制：
