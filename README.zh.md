@@ -127,7 +127,7 @@ docker compose up -d          # 拉取 autumn27/artex 镜像 + postgres
 
 ### 方式三：下载预编译二进制（Releases）
 
-到[项目 Releases](https://github.com/azrielnan/artex-ko-main/releases) 下载对应平台的 zip，解压后得到 `artex` + `start.sh`（Windows 为 `start.bat`）+ `skills/` + `config.example.json`：
+到[项目 Releases](https://github.com/azrielnan/artex-ko-main/releases) 下载对应平台的 zip。Windows 包内置便携 PostgreSQL，解压后运行 `start.bat` 会自动初始化本地数据库；Linux/macOS 包使用已有 PostgreSQL 或 Docker 数据库。每个包都包含 `artex`、启动脚本、`skills/`、`config.example.json` 和 `RELEASE-MANIFEST.txt`：
 
 ```bash
 cp config.example.json config.json   # 填好 database 连接

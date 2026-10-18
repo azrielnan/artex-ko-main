@@ -177,6 +177,7 @@ package_binary() {
   # artex 본체를 직접 실행하면 업데이트 후 다시 기동되지 않습니다. 대상 시스템에 맞는 한 벌만 포함합니다.
   if [ "$goos" = "windows" ]; then
     cp start.bat "$package_root/"
+    cp start-local.ps1 "$package_root/"
   else
     cp start.sh "$package_root/"
     chmod +x "$package_root/start.sh"

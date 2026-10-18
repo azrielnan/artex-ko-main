@@ -48,6 +48,21 @@ jobs:
         with:
           name: web-dist
           path: server/webui/dist
+      - name: Prepare portable PostgreSQL runtime for Windows
+        if: matrix.goos == 'windows'
+        env:
+          PG_RUNTIME_VERSION: "16.10"
+        run: |
+          set -euo pipefail
+          runtime_root="$RUNNER_TEMP/pgsql-runtime"
+          mkdir -p "$runtime_root"
+          curl --fail --location --retry 3 --silent --show-error \
+            "https://get.enterprisedb.com/postgresql/postgresql-${PG_RUNTIME_VERSION}-1-windows-x64-binaries.zip" \
+            --output "$runtime_root/postgresql.zip"
+          unzip -q "$runtime_root/postgresql.zip" -d "$runtime_root"
+          test -f "$runtime_root/pgsql/bin/pg_ctl.exe"
+          test -f "$runtime_root/pgsql/bin/initdb.exe"
+          echo "ARTEX_PG_RUNTIME=$runtime_root/pgsql" >> "$GITHUB_ENV"
       - name: Build and package with build.sh
         env:
           ARTEX_TARGET_OS: ${{ matrix.goos }}
@@ -61,7 +76,7 @@ jobs:
           ARTEX_PACKAGE: "1"
           ARTEX_PACKAGE_DIR: dist
         run: |
-          ./build.sh --target "${ARTEX_TARGET_OS}/${ARTEX_TARGET_ARCH}"
+          bash ./build.sh --target "${ARTEX_TARGET_OS}/${ARTEX_TARGET_ARCH}"
       - name: Smoke test Linux amd64 binary
         if: matrix.goos == 'linux' && matrix.goarch == 'amd64'
         run: dist/artex-linux-amd64/artex -h
