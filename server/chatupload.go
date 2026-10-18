@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/Autumn-27/artex/db"
@@ -28,6 +30,8 @@ const (
 	errChatUploadParse        = "업로드를 해석하지 못했거나 크기 제한을 초과했습니다: "
 	errChatUploadNoFile       = "업로드할 파일이 없습니다(폼 필드 file)"
 	errChatUploadSaveFailed   = "저장하지 못했습니다: "
+	errChatUploadBadPath      = "上传路径不合法"
+	errChatUploadFolderMode   = "文件夹导入仅支持逆向分析会话"
 )
 
 // safeChatID guards the {id} path segment against traversal — task ids are numeric,
@@ -78,6 +82,31 @@ func (s *Server) chatUpload(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, errChatUploadBadID)
 		return
 	}
+	preservePaths := r.URL.Query().Get("preserve_paths") == "1"
+	if preservePaths {
+		if sub != "sessions" || !strings.HasPrefix(id, "conv-") {
+			writeErr(w, http.StatusBadRequest, errChatUploadFolderMode)
+			return
+		}
+		convID, err := strconv.ParseInt(strings.TrimPrefix(id, "conv-"), 10, 64)
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, errChatUploadBadID)
+			return
+		}
+		pg := s.pg(w)
+		if pg == nil {
+			return
+		}
+		conv, err := pg.GetConversation(convID)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if conv == nil || conv.Mode != db.ConversationModeReverse || conv.AgentKey != "reverse" {
+			writeErr(w, http.StatusForbidden, errChatUploadFolderMode)
+			return
+		}
+	}
 	if taskScoped {
 		if s.m.ResolveTask(id) == nil {
 			writeErr(w, 404, "task not found")
@@ -104,21 +133,54 @@ func (s *Server) chatUpload(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, errChatUploadNoFile)
 		return
 	}
+	relPaths := r.MultipartForm.Value["path"]
 	out := make([]chatAttachment, 0, len(files))
-	for _, hdr := range files {
-		name := filepath.Base(hdr.Filename) // strip any path component
-		if name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\`) {
-			continue
+	for i, hdr := range files {
+		name := filepath.Base(hdr.Filename) // normal uploads keep only the basename
+		if preservePaths && i < len(relPaths) && strings.TrimSpace(relPaths[i]) != "" {
+			var ok bool
+			name, ok = safeUploadRelativePath(relPaths[i])
+			if !ok {
+				writeErr(w, http.StatusBadRequest, errChatUploadBadPath)
+				return
+			}
 		}
-		dest := uniqueUploadPath(dir, name)
+		dest := filepath.Join(dir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+			writeErr(w, 500, errChatUploadMkdir+err.Error())
+			return
+		}
+		dest = uniqueUploadPath(dir, name)
 		if err := saveUpload(hdr, dest); err != nil {
 			writeErr(w, 500, errChatUploadSaveFailed+err.Error())
 			return
 		}
-		base := filepath.Base(dest)
-		out = append(out, chatAttachment{Name: base, Path: "uploads/" + base, Size: hdr.Size, Abs: dest})
+		rel, err := filepath.Rel(dir, dest)
+		if err != nil {
+			writeErr(w, 500, errChatUploadSaveFailed+err.Error())
+			return
+		}
+		rel = filepath.ToSlash(rel)
+		out = append(out, chatAttachment{Name: filepath.Base(rel), Path: "uploads/" + rel, Size: hdr.Size, Abs: dest})
 	}
 	writeJSON(w, 200, map[string]any{"attachments": out})
+}
+
+func safeUploadRelativePath(raw string) (string, bool) {
+	rel := strings.ReplaceAll(strings.TrimSpace(raw), `\`, "/")
+	if rel == "" || strings.HasPrefix(rel, "/") || filepath.IsAbs(filepath.FromSlash(rel)) || filepath.VolumeName(filepath.FromSlash(rel)) != "" {
+		return "", false
+	}
+	for _, segment := range strings.Split(rel, "/") {
+		if segment == ".." || segment == "" {
+			return "", false
+		}
+	}
+	clean := path.Clean(rel)
+	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") {
+		return "", false
+	}
+	return filepath.ToSlash(filepath.Clean(filepath.FromSlash(clean))), true
 }
 
 // uniqueUploadPath returns dir/name, or dir/name-1, dir/name-2… when it already exists,

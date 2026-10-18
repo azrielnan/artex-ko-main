@@ -8,6 +8,7 @@ import {
   Bot,
   ChevronDownIcon,
   ChevronRightIcon,
+  FolderOpenIcon,
   ListChecksIcon,
   Loader2Icon,
   MoreHorizontalIcon,
@@ -163,6 +164,7 @@ function Composer({
   onPickFiles,
   onRemoveAttachment,
   uploading,
+  folderMode,
   allowBtw,
 }: {
   value: string;
@@ -179,6 +181,7 @@ function Composer({
   onPickFiles?: (files: File[]) => void;
   onRemoveAttachment?: (path: string) => void;
   uploading?: boolean;
+  folderMode?: boolean;
   allowBtw?: boolean;
 }) {
   const t = useTranslations("chat");
@@ -226,6 +229,9 @@ function Composer({
               ref={fileInputRef}
               type="file"
               multiple
+              {...(folderMode
+                ? ({ webkitdirectory: "" } as React.InputHTMLAttributes<HTMLInputElement> & { webkitdirectory?: string })
+                : {})}
               className="hidden"
               onChange={(e) => {
                 // FileList 는 input 요소에 live 바인딩되어 있어, 먼저 배열로 스냅샷한 뒤 value 를 비워야 한다.
@@ -240,9 +246,15 @@ function Composer({
               variant="ghost"
               onClick={() => fileInputRef.current?.click()}
               disabled={disabled || uploading}
-              title={t("composer.uploadFile")}
+              title={folderMode ? t("composer.selectFolder") : t("composer.uploadFile")}
             >
-              {uploading ? <Loader2Icon className="size-4 animate-spin" /> : <PaperclipIcon className="size-4" />}
+              {uploading ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : folderMode ? (
+                <FolderOpenIcon className="size-4" />
+              ) : (
+                <PaperclipIcon className="size-4" />
+              )}
             </Button>
           </>
         )}
@@ -435,7 +447,7 @@ function DraftChat({
     setUploading(true);
     try {
       const c = await api.createConversation(agentKey, "", llmProfileId, mode);
-      const r = await api.chatUpload("session", `conv-${c.id}`, files);
+      const r = await api.chatUpload("session", `conv-${c.id}`, files, mode === "reverse");
       onStarted(c, { input, attachments: r.attachments });
     } catch (e) {
       toast.error(t("toast.uploadFailed", { msg: (e as Error).message }));
@@ -497,6 +509,7 @@ function DraftChat({
         leftSlot={agentPicker}
         onPickFiles={pickFiles}
         uploading={uploading}
+        folderMode={mode === "reverse"}
       />
       <LLMProfileRow
         profiles={profiles}
@@ -757,7 +770,7 @@ function ChatView({
     if (files.length === 0) return;
     setUploading(true);
     try {
-      const r = await api.chatUpload("session", `conv-${conv.id}`, files);
+      const r = await api.chatUpload("session", `conv-${conv.id}`, files, conv.mode === "reverse");
       setAttachments((prev) => [...prev, ...r.attachments]);
     } catch (e) {
       toast.error(t("toast.uploadFailed", { msg: (e as Error).message }));
@@ -874,6 +887,7 @@ function ChatView({
         onPickFiles={pickFiles}
         onRemoveAttachment={(path) => setAttachments((p) => p.filter((x) => x.path !== path))}
         uploading={uploading}
+        folderMode={conv.mode === "reverse"}
       />
       <LLMProfileRow
         profiles={profiles}

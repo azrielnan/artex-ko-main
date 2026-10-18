@@ -924,7 +924,7 @@ export const api = {
     post<{ reply: string; mode: string }>(`/chat${tq(task)}`, { message, attachments, seg }),
   chatStatus: (taskId: string) => get<{ running: boolean }>(`/tasks/${taskId}/chat/status`),
   // 方式1 文件上传:落到会话/任务工作目录 uploads/，返回可供 agent Read 的相对路径。
-  chatUpload: async (scope: "task" | "session" | "staging", id: string, files: File[]) => {
+  chatUpload: async (scope: "task" | "session" | "staging", id: string, files: File[], preservePaths = false) => {
     if (MOCK)
       return {
         attachments: files.map((f) => ({
@@ -935,9 +935,12 @@ export const api = {
         })),
       };
     const fd = new FormData();
-    for (const f of files) fd.append("file", f);
+    for (const f of files) {
+      fd.append("file", f);
+      if (preservePaths) fd.append("path", (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name);
+    }
     return requestMultipart<{ attachments: ChatAttachment[] }>(
-      `/chat/upload?scope=${scope}&id=${encodeURIComponent(id)}`,
+      `/chat/upload?scope=${scope}&id=${encodeURIComponent(id)}${preservePaths ? "&preserve_paths=1" : ""}`,
       fd,
       { timeoutMs: 120_000 },
     );

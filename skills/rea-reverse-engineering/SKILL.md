@@ -12,9 +12,9 @@ mcps: REA
 
 ## 准备
 
-- ARTEX 预置名为 `REA` 的 stdio MCP 配置：`npx -y rea-agents@6.5.0 mcp`。它默认关闭，不会在 ARTEX 启动时自动下载或运行。
-- 在系统设置的 MCP 管理中启用 `REA`。需要 Node.js 22.19+、24.11+ 或 26+；REA 使用的具体分析器还可能需要按官方文档另行安装和配置。
-- 第三方 REA 软件及其组件不随本技能重新分发。使用前请查看上游仓库的 LICENSE、版本说明和各分析器自己的许可与运行要求。
+- ARTEX 预置名为 `REA` 的 stdio MCP 配置，默认关闭且只对逆向 Agent 可见。GitHub Release 分发包会优先使用 `runtime/rea` 中随包提供的 Node.js 22.19.0、REA 6.5.0 和 npm 运行依赖；源码开发环境没有该目录时才回退到 `npx -y rea-agents@6.5.0 mcp`。
+- 在系统设置的 MCP 管理中启用 `REA`。REA 使用的具体分析器还可能需要按官方文档另行安装和配置。
+- 第三方 REA、Node.js 及其依赖的许可证和声明随发布包提供；使用前请查看上游仓库和压缩包中的 LICENSE/NOTICE 文件，并遵守各分析器自己的许可与运行要求。
 
 ## 工作流程
 

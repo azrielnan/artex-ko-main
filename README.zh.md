@@ -27,14 +27,13 @@
 
 聊天页提供「安全测试」和「逆向分析」两个可切换模式。模式切换会清空当前选择，并在 URL 中记录当前模式；侧栏历史和新建会话均按模式隔离。逆向分析使用单独的 Agent、提示词和会话记录，不会把安全测试对话、任务上下文或发现带入逆向会话，反之亦然。
 
-逆向分析由 [REA](https://github.com/morluto/rea) 提供 MCP 工具：
+逆向分析由 [REA](https://github.com/morluto/rea) 提供 MCP 工具。GitHub Release 的各平台分发包已附带 Node.js 22.19.0、REA 6.5.0 及其 npm 运行依赖，启用内置服务时不需要再通过 `npx` 在线下载：
 
-1. 安装 Node.js **22.19+、24.11+ 或 26+**。
-2. 在「系统设置 → MCP」中启用预置的 `REA` 服务（`npx -y rea-agents@6.5.0 mcp`）。它默认关闭，启用后首次连接会通过 npm 下载对应版本。
-3. 按 REA 官方文档为需要的格式配置本地分析器；不同分析器可能有额外依赖。
-4. 回到聊天页切换到「逆向分析」，上传或指定材料后开始分析。结论会尽可能附带工具返回的证据与限制。
+1. 在「系统设置 → MCP」中启用预置的 `REA` 服务。它默认关闭；发行包会优先启动包内的 Node.js 和 REA，源码开发环境仍可使用 `npx -y rea-agents@6.5.0 mcp` 回退配置。
+2. 按 REA 官方文档为需要的格式配置本地分析器；Ghidra、IDA、JADX 等外部分析器及其自身依赖不包含在 ARTEX 分发包中。
+3. 回到聊天页切换到「逆向分析」，选择本地文件夹或材料后开始分析。结论会尽可能附带工具返回的证据与限制。
 
-REA 和其分析器是第三方软件，不随 ARTEX 打包；请在上游仓库查看许可证、版本要求和各组件的使用条款。内置技能说明见 [`skills/rea-reverse-engineering/SKILL.md`](skills/rea-reverse-engineering/SKILL.md)。
+REA 及 Node.js 是第三方软件，按其上游许可证随发行包提供；REA 使用的外部分析器不随包提供。请查看压缩包中的许可证与声明文件，并遵循上游文档及各组件的使用条款。内置技能说明见 [`skills/rea-reverse-engineering/SKILL.md`](skills/rea-reverse-engineering/SKILL.md)。
 
 ---
 

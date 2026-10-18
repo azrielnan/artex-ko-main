@@ -18,6 +18,7 @@
 #   ARTEX_SKIP_FRONTEND=1             Reuse server/webui/dist (for CI artifact builds).
 #   ARTEX_SKIP_NPM_CI=1               Skip npm ci while rebuilding the frontend.
 #   ARTEX_GOSUMDB=sum.golang.org      Go checksum database.
+#   ARTEX_REA_RUNTIME_DIR=dir         Directory containing bundled Node + REA runtime.
 set -euo pipefail
 
 cd "$(cd "$(dirname "$0")" && pwd)"
@@ -207,10 +208,26 @@ EOF
       warn "未找到 PostgreSQL 运行时；Windows 包仍会生成，但需要设置 ARTEX_PG_RUNTIME 或外部数据库。"
     fi
   fi
+  if [ -n "${ARTEX_REA_RUNTIME_DIR:-}" ]; then
+    [ -f "$ARTEX_REA_RUNTIME_DIR/node_modules/rea-agents/scripts/rea.mjs" ] || die "REA runtime is missing its entry point: $ARTEX_REA_RUNTIME_DIR"
+    info "复制内置 REA MCP 运行时: $ARTEX_REA_RUNTIME_DIR"
+    mkdir -p "$package_root/runtime/rea"
+    cp -R "$ARTEX_REA_RUNTIME_DIR/." "$package_root/runtime/rea/"
+    cat > "$package_root/runtime/rea/README.txt" <<'EOF'
+ARTEX 内置 REA MCP 运行时
+
+此目录由发布构建自动生成，包含 Node.js 22.19.0、REA 6.5.0 及生产依赖。
+ARTEX 启用默认 REA MCP 时会优先使用这里的 node/node.exe；源码开发目录没有此目录时才回退到系统 npx。
+请保留 NODE-LICENSE.txt、node_modules/rea-agents/LICENSE 和 THIRD_PARTY_NOTICES.md 等上游声明文件。
+EOF
+  else
+    warn "未提供 ARTEX_REA_RUNTIME_DIR；发布包将回退到系统 Node.js/npx。"
+  fi
   cat > "$package_root/RELEASE-MANIFEST.txt" <<EOF
 ARTEX ${ARTEX_BUILD_VERSION}
 target=${goos}/${goarch}
 portable_postgres=$([ -d "$package_root/runtime/pgsql/bin" ] && echo bundled || echo external)
+rea_mcp=$([ -f "$package_root/runtime/rea/node_modules/rea-agents/scripts/rea.mjs" ] && echo bundled || echo external-node-required)
 secrets=config.json,jwt.key,data/ (intentionally excluded)
 EOF
   if [ -f README.md ]; then cp README.md "$package_root/"; fi

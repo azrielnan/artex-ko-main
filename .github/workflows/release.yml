@@ -68,6 +68,14 @@ jobs:
             cp "$source_dll" "$runtime_root/pgsql/bin/$dll"
           done
           echo "ARTEX_PG_RUNTIME=$runtime_root/pgsql" >> "$GITHUB_ENV"
+      - name: Prepare bundled REA MCP runtime
+        env:
+          ARTEX_REA_NODE_VERSION: "22.19.0"
+        run: |
+          set -euo pipefail
+          rea_root="$RUNNER_TEMP/rea-runtime"
+          bash ./scripts/bundle-rea.sh "${{ matrix.goos }}/${{ matrix.goarch }}" "$rea_root"
+          echo "ARTEX_REA_RUNTIME_DIR=$rea_root" >> "$GITHUB_ENV"
       - name: Build and package with build.sh
         env:
           ARTEX_TARGET_OS: ${{ matrix.goos }}

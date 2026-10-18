@@ -140,7 +140,7 @@ export ANTHROPIC_API_KEY=<your-key>
 逆向模式默认关闭，不会在启动 ARTEX 时自动下载或运行第三方分析器。启用步骤：
 
 1. 安装 Node.js **22.19+、24.11+ 或 26+**。
-2. 在「系统设置 → MCP」中启用预置的 `REA` 服务：`npx -y rea-agents@6.5.0 mcp`。
+2. 在「系统设置 → MCP」中启用预置的 `REA` 服务。GitHub Release 分发包优先使用包内 Node.js/REA 运行时；源码环境没有内置运行时时才回退到 `npx -y rea-agents@6.5.0 mcp`。
 3. 按 [REA 中文文档](https://github.com/morluto/rea/blob/main/docs/readme/README_zh.md) 配置具体分析器及其依赖。
 4. 在聊天页切换到「逆向分析」，上传或指定本地材料后开始分析。
 

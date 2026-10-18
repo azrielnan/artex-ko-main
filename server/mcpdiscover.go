@@ -5,8 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
+	"runtime"
 	"time"
 
+	"github.com/Autumn-27/artex/config"
 	"github.com/Autumn-27/artex/db"
 	"github.com/Autumn-27/artex/mcphttp"
 	"github.com/Autumn-27/norma/mcp"
@@ -43,7 +47,8 @@ func connectMCP(ctx context.Context, m *db.MCPServer) (mcpClient, error) {
 		if m.Command == "" {
 			return nil, errors.New(errMCPStdioNoCommand)
 		}
-		return mcp.NewStdioClient(ctx, m.Name, m.Command, jsonStrMap(m.Env), jsonStrSlice(m.Args)...)
+		command, args := resolveBundledREAMCP(m, config.BaseDir(), runtime.GOOS)
+		return mcp.NewStdioClient(ctx, m.Name, command, jsonStrMap(m.Env), args...)
 	case "http":
 		if m.URL == "" {
 			return nil, errors.New(errMCPHTTPNoURL)
@@ -58,6 +63,41 @@ func connectMCP(ctx context.Context, m *db.MCPServer) (mcpClient, error) {
 	default:
 		return nil, fmt.Errorf(errMCPUnknownTransportFmt, m.Transport)
 	}
+}
+
+// resolveBundledREAMCP transparently uses the copy shipped in a release archive
+// for the untouched built-in REA entry. Custom REA commands remain user-controlled.
+func resolveBundledREAMCP(m *db.MCPServer, baseDir, goos string) (string, []string) {
+	args := jsonStrSlice(m.Args)
+	if m.Name != "REA" || m.Command != "npx" || !sameStringSlice(args, []string{"-y", "rea-agents@6.5.0", "mcp"}) {
+		return m.Command, args
+	}
+
+	nodeName := "node"
+	if goos == "windows" {
+		nodeName = "node.exe"
+	}
+	nodePath := filepath.Join(baseDir, "runtime", "rea", nodeName)
+	entryPath := filepath.Join(baseDir, "runtime", "rea", "node_modules", "rea-agents", "scripts", "rea.mjs")
+	if _, err := os.Stat(nodePath); err != nil {
+		return m.Command, args
+	}
+	if _, err := os.Stat(entryPath); err != nil {
+		return m.Command, args
+	}
+	return nodePath, []string{entryPath, "mcp"}
+}
+
+func sameStringSlice(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // discoverAndCacheMCP connects to one MCP, lists its tools, and persists the tool
