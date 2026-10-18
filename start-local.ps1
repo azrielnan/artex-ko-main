@@ -1,4 +1,4 @@
-param(
+﻿param(
   [Parameter(ValueFromRemainingArguments = $true)]
   [string[]]$ArtexArgs
 )
