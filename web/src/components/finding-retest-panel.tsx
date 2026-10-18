@@ -82,7 +82,7 @@ export function FindingRetestPanel({
         </div>
         {running?.conversation_id != null ? (
           <Button asChild variant="outline" size="sm">
-            <Link href={`/chat?c=${running.conversation_id}`} title={t("viewRunning")}>
+            <Link href={`/chat?mode=pentest&c=${running.conversation_id}`} title={t("viewRunning")}>
               <Spinner data-icon="inline-start" aria-hidden="true" />
               {t("status.running")}
             </Link>
@@ -131,7 +131,7 @@ export function FindingRetestPanel({
                   </span>
                   {item.conversation_id != null ? (
                     <Button asChild variant="ghost" size="sm" className="ml-auto">
-                      <Link href={`/chat?c=${item.conversation_id}`}>{t("viewSession")}</Link>
+                      <Link href={`/chat?mode=pentest&c=${item.conversation_id}`}>{t("viewSession")}</Link>
                     </Button>
                   ) : (
                     <span className="text-muted-foreground text-xs">{t("sessionDeleted")}</span>

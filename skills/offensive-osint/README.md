@@ -49,7 +49,7 @@ Full trigger list in the SKILL.md frontmatter.
 
 ## What's in it
 
-See the parent [README's "What's in the box" table](../../README.md#whats-in-the-box) for the full §-by-§ breakdown.
+See the parent [README's feature table](../../README.md#主要能力) for the project overview.
 
 Highlights:
 

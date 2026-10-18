@@ -1976,6 +1976,7 @@ function route(m: string, path: string, seg: string[], q: URLSearchParams, b: Re
       mockConversations.unshift({
         id: conversationID,
         agent_key: "retester",
+        mode: "pentest",
         title: `재검증 #${finding.id} · ${finding.name || finding.vulnclass}`,
         pinned: false,
         created_at: now,
@@ -2319,23 +2320,36 @@ function route(m: string, path: string, seg: string[], q: URLSearchParams, b: Re
   // ── conversations ──
   if (path === "/conversations" && m === "GET") {
     sortMockConversations();
+    const mode = q.get("mode") || "pentest";
     return {
       conversations: structuredClone(
-        mockConversations.map((conversation) => ({
-          ...conversation,
-          running: mockRetests.some(
-            (item) => item.conversation_id === conversation.id && ["pending", "running"].includes(item.status),
-          ),
-        })),
+        mockConversations
+          .filter((conversation) => conversation.mode === mode)
+          .map((conversation) => ({
+            ...conversation,
+            running: mockRetests.some(
+              (item) => item.conversation_id === conversation.id && ["pending", "running"].includes(item.status),
+            ),
+          })),
       ),
     };
   }
   if (path === "/conversations" && m === "POST") {
     const now = new Date().toISOString();
-    const title = String(b.title ?? "").trim() || "새 대화";
+    const requestedMode = typeof b.mode === "string" && b.mode !== "" ? b.mode : "pentest";
+    if (requestedMode !== "pentest" && requestedMode !== "reverse") {
+      throw new Error("对话模式无效");
+    }
+    const mode = requestedMode;
+    const agentKey = String(b.agent_key ?? "mainagent");
+    if ((mode === "reverse" && agentKey !== "reverse") || (mode === "pentest" && agentKey === "reverse")) {
+      throw new Error("Agent 与对话模式不匹配");
+    }
+    const title = String(b.title ?? "").trim() || "新对话";
     const conversation: Conversation = {
       id: mockConversations.reduce((max, item) => Math.max(max, item.id), 0) + 1,
-      agent_key: String(b.agent_key ?? "mainagent"),
+      agent_key: agentKey,
+      mode,
       title,
       llm_profile_id: typeof b.llm_profile_id === "number" ? b.llm_profile_id : undefined,
       pinned: false,

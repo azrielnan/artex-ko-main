@@ -954,12 +954,19 @@ CREATE TRIGGER trg_tools_upd BEFORE UPDATE ON tools
 CREATE TABLE IF NOT EXISTS conversations (
     id             BIGSERIAL PRIMARY KEY,
     agent_key      TEXT NOT NULL,
+    mode           TEXT NOT NULL DEFAULT 'pentest',
     title          TEXT NOT NULL DEFAULT '',
     llm_profile_id BIGINT REFERENCES llm_profiles(id) ON DELETE SET NULL,
     pinned_at      TIMESTAMPTZ,
     created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'pentest';
+DO $$ BEGIN
+    ALTER TABLE conversations ADD CONSTRAINT ck_conversations_mode
+        CHECK (mode IN ('pentest','reverse'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS idx_conversations_mode_updated ON conversations(mode, updated_at DESC);
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS pinned_at TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS idx_conversations_llm_profile ON conversations(llm_profile_id) WHERE llm_profile_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_conversations_pinned ON conversations(pinned_at DESC) WHERE pinned_at IS NOT NULL;

@@ -1044,9 +1044,16 @@ export const api = {
   deleteAgent: (key: string) => del<{ deleted: string }>(`/agents/${key}`),
 
   // ---- conversations (chat page) ----
-  conversations: () => get<{ conversations: Conversation[] }>("/conversations").then((r) => arr(r.conversations)),
-  createConversation: (agent_key: string, title = "", llm_profile_id?: number | null) =>
-    post<Conversation>("/conversations", { agent_key, title, llm_profile_id: llm_profile_id ?? null }),
+  conversations: (mode?: Conversation["mode"]) => {
+    const query = mode ? `?mode=${encodeURIComponent(mode)}` : "";
+    return get<{ conversations: Conversation[] }>(`/conversations${query}`).then((r) => arr(r.conversations));
+  },
+  createConversation: (
+    agent_key: string,
+    title = "",
+    llm_profile_id?: number | null,
+    mode: Conversation["mode"] = "pentest",
+  ) => post<Conversation>("/conversations", { agent_key, title, llm_profile_id: llm_profile_id ?? null, mode }),
   updateConversation: (id: number, input: { title?: string; pinned?: boolean }) =>
     patch<Conversation>(`/conversations/${id}`, input),
   renameConversation: (id: number, title: string) => patch<Conversation>(`/conversations/${id}`, { title }),

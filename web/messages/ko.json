@@ -2810,6 +2810,15 @@
   "chat": {
     "live": "실시간",
     "custom": "사용자 지정",
+    "modeSwitch": {
+      "label": "대화 모드",
+      "pentest": "보안 테스트",
+      "reverse": "리버스 분석",
+      "pentestNote": "보안 테스트 대화와 리버스 분석 기록은 별도로 보관됩니다.",
+      "reverseNote": "리버스 분석 대화만 표시됩니다. 처음 사용하기 전에 시스템 설정에서 REA MCP를 활성화하세요.",
+      "reverseAgent": "리버스 분석 Agent"
+    },
+    "agentFallback": "에이전트",
     "emptyStart": "「{agent}」와(과) 대화를 시작하세요",
     "turnsTooltip": "에이전트 반복 횟수(모델 호출 횟수)",
     "turnsCount": "{turns}회",

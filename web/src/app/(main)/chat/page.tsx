@@ -4,6 +4,7 @@ import * as React from "react";
 
 import {
   ArrowUpIcon,
+  Binary,
   Bot,
   ChevronDownIcon,
   ChevronRightIcon,
@@ -16,6 +17,7 @@ import {
   PinOffIcon,
   PlusIcon,
   Square,
+  ShieldCheck,
   Trash2Icon,
   XIcon,
   ZapIcon,
@@ -59,7 +61,7 @@ import { api } from "@/lib/api";
 import { shouldSubmitOnKey, useChatSendMode } from "@/lib/chat-send-mode";
 import { getLocalStorageValue, setLocalStorageValue } from "@/lib/local-storage.client";
 import { isBtwCommand } from "@/lib/side-questions";
-import type { Activity, Agent, ChatAttachment, Conversation, LLMProfile } from "@/lib/types";
+import type { Activity, Agent, ChatAttachment, Conversation, ConversationMode, LLMProfile } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 // fmtBytes renders a human file size for attachment chips (mirrors transcript.tsx).
@@ -96,6 +98,7 @@ const CONVERSATION_LIST_PAGE = 100;
 // rail looks the same after a reload; unknown keys are harmless (a deleted agent
 // simply never renders a group again).
 const COLLAPSED_AGENTS_KEY = "artex.chat.collapsed-agents";
+const CHAT_MODE_KEY = "artex.chat.mode";
 
 function conversationIsPinned(conversation: Conversation): boolean {
   return conversation.pinned ?? Boolean(conversation.pinned_at);
@@ -383,10 +386,12 @@ function LLMProfileRow({
 // conversation is created lazily on the first send (ChatGPT-style), then the
 // parent switches to the real ChatView.
 function DraftChat({
+  mode,
   agents,
   profiles,
   onStarted,
 }: {
+  mode: ConversationMode;
   agents: Agent[];
   profiles: LLMProfile[];
   onStarted: (c: Conversation, pending?: { input?: string; attachments?: ChatAttachment[] }) => void;
@@ -398,19 +403,20 @@ function DraftChat({
   const [sending, setSending] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
 
-  // default the agent to Auto once agents load.
+  // Reverse mode is pinned to its dedicated REA-backed agent. Pentest keeps the
+  // existing Auto-first behavior and can still use other conversational agents.
   React.useEffect(() => {
-    if (!agentKey && agents.some((a) => a.key === "auto")) setAgentKey("auto");
-  }, [agentKey, agents]);
+    setAgentKey(mode === "reverse" ? "reverse" : "auto");
+  }, [mode]);
 
   const agent = agents.find((a) => a.key === agentKey);
 
   async function send() {
     const msg = input.trim();
-    if (!msg || !agentKey || sending) return;
+    if (!msg || !agentKey || !agent || sending) return;
     setSending(true);
     try {
-      const c = await api.createConversation(agentKey, "", llmProfileId);
+      const c = await api.createConversation(agentKey, "", llmProfileId, mode);
       await api.sendConversationMessage(c.id, msg);
       onStarted(c);
     } catch (e) {
@@ -425,10 +431,10 @@ function DraftChat({
   // user sends from there). Mirrors the task main-agent console's upload, adapted to
   // the ChatGPT-style lazy-create flow.
   async function pickFiles(files: File[]) {
-    if (files.length === 0 || !agentKey || uploading || sending) return;
+    if (files.length === 0 || !agentKey || !agent || uploading || sending) return;
     setUploading(true);
     try {
-      const c = await api.createConversation(agentKey, "", llmProfileId);
+      const c = await api.createConversation(agentKey, "", llmProfileId, mode);
       const r = await api.chatUpload("session", `conv-${c.id}`, files);
       onStarted(c, { input, attachments: r.attachments });
     } catch (e) {
@@ -437,30 +443,39 @@ function DraftChat({
     }
   }
 
-  const agentPicker = (
-    <Select value={agentKey} onValueChange={setAgentKey}>
-      <SelectTrigger className="w-full sm:w-40">
-        <SelectValue placeholder={t("agentPicker.placeholder")} />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectGroup>
-          {agents.map((a) => (
-            <SelectItem key={a.key} value={a.key}>
-              <span className="flex items-center gap-2">
-                <Bot className="size-3.5" />
-                {a.name}
-                {!a.builtin && (
-                  <Badge variant="outline" className="px-1 py-0 text-[9px]">
-                    {t("custom")}
-                  </Badge>
-                )}
-              </span>
-            </SelectItem>
-          ))}
-        </SelectGroup>
-      </SelectContent>
-    </Select>
-  );
+  const agentPicker =
+    mode === "reverse" ? (
+      <div className="bg-muted flex h-9 items-center gap-2 rounded-md border px-3 text-sm">
+        <Binary className="text-primary size-4" />
+        <span>{agent?.name ?? t("modeSwitch.reverseAgent")}</span>
+        <Badge variant="outline" className="px-1 py-0 text-[9px]">
+          REA
+        </Badge>
+      </div>
+    ) : (
+      <Select value={agentKey} onValueChange={setAgentKey}>
+        <SelectTrigger className="w-full sm:w-40">
+          <SelectValue placeholder={t("agentPicker.placeholder")} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            {agents.map((a) => (
+              <SelectItem key={a.key} value={a.key}>
+                <span className="flex items-center gap-2">
+                  <Bot className="size-3.5" />
+                  {a.name}
+                  {!a.builtin && (
+                    <Badge variant="outline" className="px-1 py-0 text-[9px]">
+                      {t("custom")}
+                    </Badge>
+                  )}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+    );
 
   return (
     <>
@@ -469,7 +484,7 @@ function DraftChat({
         <div className="bg-primary/10 flex size-12 items-center justify-center rounded-full">
           <Bot className="text-primary size-6" />
         </div>
-        <div className="text-sm font-medium">{t("emptyStart", { agent: agent?.name ?? "에이전트" })}</div>
+        <div className="text-sm font-medium">{t("emptyStart", { agent: agent?.name ?? t("agentFallback") })}</div>
         {agent?.description && <p className="text-muted-foreground max-w-md text-xs">{agent.description}</p>}
       </div>
 
@@ -477,7 +492,7 @@ function DraftChat({
         value={input}
         onChange={setInput}
         onSend={send}
-        disabled={sending || uploading || !agentKey}
+        disabled={sending || uploading || !agentKey || !agent}
         placeholder={t("composer.placeholder")}
         leftSlot={agentPicker}
         onPickFiles={pickFiles}
@@ -1086,6 +1101,10 @@ export default function ChatPage() {
   const [agents, setAgents] = React.useState<Agent[]>([]);
   const [profiles, setProfiles] = React.useState<LLMProfile[]>([]);
   const [convs, setConvs] = React.useState<Conversation[]>([]);
+  const [mode, setMode] = React.useState<ConversationMode>("pentest");
+  const [modeLoaded, setModeLoaded] = React.useState(false);
+  const modeRef = React.useRef(mode);
+  modeRef.current = mode;
   const [agentFilter, setAgentFilter] = React.useState<string | null>(null);
   const [selectedId, setSelectedId] = React.useState<number | null>(null);
   const [sourceRequested, setSourceRequested] = React.useState(false);
@@ -1125,9 +1144,10 @@ export default function ChatPage() {
 
   const conversationListSeq = React.useRef(0);
   const reloadConvs = React.useCallback(async () => {
+    if (!modeLoaded) return;
     const seq = ++conversationListSeq.current;
     try {
-      const items = await api.conversations();
+      const items = await api.conversations(mode);
       if (seq === conversationListSeq.current) {
         setConvs(items);
         setConvsLoaded(true);
@@ -1135,7 +1155,7 @@ export default function ChatPage() {
     } catch {
       // Preserve the selected transcript and list on a transient poll failure.
     }
-  }, []);
+  }, [mode, modeLoaded]);
   React.useEffect(() => {
     api
       .agents()
@@ -1154,6 +1174,7 @@ export default function ChatPage() {
   // One list poll supplies runtime state for all sidebar rows, including the
   // unselected ones. Await completion so slow requests do not overlap.
   React.useEffect(() => {
+    if (!modeLoaded) return;
     let disposed = false;
     let timer: ReturnType<typeof setTimeout>;
     async function poll() {
@@ -1166,7 +1187,7 @@ export default function ChatPage() {
       conversationListSeq.current++;
       clearTimeout(timer);
     };
-  }, [reloadConvs]);
+  }, [modeLoaded, reloadConvs]);
 
   React.useEffect(() => {
     setSelectedConversationIds((current) => {
@@ -1176,6 +1197,13 @@ export default function ChatPage() {
       return next.size === current.size ? current : next;
     });
   }, [convs]);
+
+  React.useEffect(() => {
+    if (!convsLoaded || selectedId == null) return;
+    if (convs.some((conversation) => conversation.id === selectedId && conversation.mode === mode)) return;
+    setSelectedId(null);
+    setSourceRequested(false);
+  }, [convs, convsLoaded, mode, selectedId]);
 
   React.useEffect(() => {
     const raw = getLocalStorageValue(COLLAPSED_AGENTS_KEY);
@@ -1203,27 +1231,43 @@ export default function ChatPage() {
   // hydration (not a lazy useState init) to avoid a server/client mismatch.
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const requestedMode = params.get("mode");
+    const savedMode = getLocalStorageValue(CHAT_MODE_KEY);
+    const restoredMode =
+      requestedMode === "reverse" || (requestedMode !== "pentest" && savedMode === "reverse") ? "reverse" : "pentest";
+    setMode(restoredMode);
     setSourceRequested(params.has("approval"));
     const c = params.get("c");
     const id = c ? Number(c) : NaN;
     if (Number.isFinite(id)) setSelectedId(id);
+    setModeLoaded(true);
   }, []);
   // Mirror the current selection into the URL (replaceState → no history spam). A
   // selectedId with no matching conversation (e.g. a stale ?c=, or a just-created
   // one before reloadConvs lands) simply renders the draft view — harmless — so we
   // deliberately do NOT auto-clear it here (that raced new-conversation creation).
   React.useEffect(() => {
+    if (!modeLoaded) return;
+    setLocalStorageValue(CHAT_MODE_KEY, mode);
     const url = new URL(window.location.href);
+    url.searchParams.set("mode", mode);
     if (selectedId != null) url.searchParams.set("c", String(selectedId));
     else url.searchParams.delete("c");
     window.history.replaceState(null, "", url);
-  }, [selectedId]);
+  }, [mode, modeLoaded, selectedId]);
 
-  const selected = React.useMemo(() => convs.find((c) => c.id === selectedId) ?? null, [convs, selectedId]);
+  const selected = React.useMemo(
+    () => convs.find((c) => c.id === selectedId && c.mode === mode) ?? null,
+    [convs, mode, selectedId],
+  );
   const agentByKey = React.useMemo(() => new Map(agents.map((agent) => [agent.key, agent])), [agents]);
   const filteredConversations = React.useMemo(
-    () => (agentFilter === null ? convs : convs.filter((conversation) => conversation.agent_key === agentFilter)),
-    [convs, agentFilter],
+    () =>
+      convs.filter(
+        (conversation) =>
+          conversation.mode === mode && (agentFilter === null || conversation.agent_key === agentFilter),
+      ),
+    [convs, mode, agentFilter],
   );
   const visibleConversations = React.useMemo(
     () => filteredConversations.slice(0, visibleConversationCount),
@@ -1246,10 +1290,13 @@ export default function ChatPage() {
   // conversation agents: custom agents + conversational built-ins (role=assistant,
   // e.g. Auto / 침투 테스트). The orchestration built-ins (goals/planner/mainagent/worker)
   // are task-specific and stay hidden from the chat page.
-  const chatAgents = React.useMemo(() => agents.filter((a) => !a.builtin || a.role === "assistant"), [agents]);
+  const chatAgents = React.useMemo(() => {
+    const visible = agents.filter((a) => !a.builtin || a.role === "assistant");
+    return mode === "reverse" ? visible.filter((a) => a.key === "reverse") : visible.filter((a) => a.key !== "reverse");
+  }, [agents, mode]);
   const agentFilterOptions = React.useMemo(() => {
     const counts = new Map<string, number>();
-    for (const conversation of convs) {
+    for (const conversation of convs.filter((item) => item.mode === mode)) {
       counts.set(conversation.agent_key, (counts.get(conversation.agent_key) ?? 0) + 1);
     }
     // Include historical sources even if their Agent has since been disabled or deleted.
@@ -1257,12 +1304,15 @@ export default function ChatPage() {
     if (agentFilter !== null) keys.add(agentFilter);
     return [...keys]
       .map((key) => ({ key, name: agentByKey.get(key)?.name || key, count: counts.get(key) ?? 0 }))
-      .sort((a, b) => a.name.localeCompare(b.name, "ko"));
-  }, [convs, chatAgents, agentByKey, agentFilter]);
+      .sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
+  }, [convs, mode, chatAgents, agentByKey, agentFilter]);
   const conversationCountLabel =
     agentFilter === null
-      ? t("totalCount", { count: convs.length })
-      : t("filteredCount", { shown: filteredConversations.length, total: convs.length });
+      ? t("totalCount", { count: filteredConversations.length })
+      : t("filteredCount", {
+          shown: filteredConversations.length,
+          total: convs.filter((item) => item.mode === mode).length,
+        });
 
   function changeAgentFilter(key: string | null) {
     setAgentFilter(key);
@@ -1270,6 +1320,29 @@ export default function ChatPage() {
     setSelectedConversationIds(new Set());
     setBulkDeleteOpen(false);
     setRenamingId(null);
+  }
+
+  function changeMode(nextMode: ConversationMode) {
+    if (nextMode === mode) return;
+    // Invalidate any conversation-list request from the previous mode before its
+    // effect cleanup runs, so a slow response cannot refill the new mode's sidebar.
+    conversationListSeq.current++;
+    setMode(nextMode);
+    setConvs([]);
+    setConvsLoaded(false);
+    setSelectedId(null);
+    setSourceRequested(false);
+    setAgentFilter(null);
+    setVisibleConversationCount(CONVERSATION_LIST_PAGE);
+    setSelectedConversationIds(new Set());
+    setSelectionMode(false);
+    setBulkDeleteOpen(false);
+    setRenamingId(null);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("approval");
+    url.searchParams.delete("c");
+    url.searchParams.set("mode", nextMode);
+    window.history.replaceState(null, "", url);
   }
 
   const selectedConversationCount = selectedConversationIds.size;
@@ -1403,6 +1476,32 @@ export default function ChatPage() {
         {/* left: conversation list */}
         <div className="bg-card flex flex-col overflow-hidden rounded-lg border">
           <div className="flex flex-col gap-2 border-b p-2">
+            <fieldset className="m-0 grid min-w-0 grid-cols-2 gap-1 rounded-lg border-0 bg-muted/70 p-1">
+              <legend className="sr-only">{t("modeSwitch.label")}</legend>
+              <Button
+                type="button"
+                aria-pressed={mode === "pentest"}
+                size="sm"
+                variant={mode === "pentest" ? "default" : "ghost"}
+                className="min-w-0"
+                onClick={() => changeMode("pentest")}
+              >
+                <ShieldCheck data-icon="inline-start" /> {t("modeSwitch.pentest")}
+              </Button>
+              <Button
+                type="button"
+                aria-pressed={mode === "reverse"}
+                size="sm"
+                variant={mode === "reverse" ? "default" : "ghost"}
+                className="min-w-0"
+                onClick={() => changeMode("reverse")}
+              >
+                <Binary data-icon="inline-start" /> {t("modeSwitch.reverse")}
+              </Button>
+            </fieldset>
+            <p className="text-muted-foreground px-1 text-[11px] leading-relaxed">
+              {mode === "reverse" ? t("modeSwitch.reverseNote") : t("modeSwitch.pentestNote")}
+            </p>
             <Button size="sm" className="w-full" onClick={() => selectConversation(null)}>
               <PlusIcon /> {t("newConversation")}
             </Button>
@@ -1474,7 +1573,7 @@ export default function ChatPage() {
               ))}
           </div>
           <ScrollArea
-            key={agentFilter === null ? "all" : `agent:${agentFilter}`}
+            key={`${mode}:${agentFilter === null ? "all" : `agent:${agentFilter}`}`}
             type="auto"
             className="min-h-0 min-w-0 flex-1 [&_[data-slot=scroll-area-viewport]>div]:block!"
           >
@@ -1572,9 +1671,12 @@ export default function ChatPage() {
             </div>
           ) : (
             <DraftChat
+              key={mode}
+              mode={mode}
               agents={chatAgents}
               profiles={profiles}
               onStarted={(c, pending) => {
+                if (c.mode !== modeRef.current) return;
                 if (agentFilter !== null && agentFilter !== c.agent_key) changeAgentFilter(null);
                 // Insert the new conversation immediately so `selected` resolves to
                 // it on this render (switching to ChatView right away, before the

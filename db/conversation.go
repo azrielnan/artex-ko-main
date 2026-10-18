@@ -2,8 +2,18 @@ package db
 
 import (
 	"database/sql"
+	"errors"
 	"time"
 )
+
+const (
+	ConversationModePentest = "pentest"
+	ConversationModeReverse = "reverse"
+)
+
+func ValidConversationMode(mode string) bool {
+	return mode == ConversationModePentest || mode == ConversationModeReverse
+}
 
 // ConvTokenSummary is one conversation's token total (sum of its kind='result'
 // rows) with its profile + created_at, used to merge conversation usage into the
@@ -52,6 +62,7 @@ GROUP BY c.id`)
 type Conversation struct {
 	ID           int64      `json:"id"`
 	AgentKey     string     `json:"agent_key"`
+	Mode         string     `json:"mode"`
 	Title        string     `json:"title"`
 	LLMProfileID *int64     `json:"llm_profile_id,omitempty"`
 	Pinned       bool       `json:"pinned"`
@@ -66,12 +77,12 @@ type ConversationPatch struct {
 	Pinned *bool
 }
 
-const convCols = `id, agent_key, title, llm_profile_id, pinned_at, created_at, updated_at`
+const convCols = `id, agent_key, mode, title, llm_profile_id, pinned_at, created_at, updated_at`
 
 func scanConv(row interface{ Scan(...any) error }) (Conversation, error) {
 	var c Conversation
 	var pinnedAt sql.NullTime
-	err := row.Scan(&c.ID, &c.AgentKey, &c.Title, &c.LLMProfileID, &pinnedAt, &c.CreatedAt, &c.UpdatedAt)
+	err := row.Scan(&c.ID, &c.AgentKey, &c.Mode, &c.Title, &c.LLMProfileID, &pinnedAt, &c.CreatedAt, &c.UpdatedAt)
 	if pinnedAt.Valid {
 		c.Pinned = true
 		c.PinnedAt = &pinnedAt.Time
@@ -82,6 +93,24 @@ func scanConv(row interface{ Scan(...any) error }) (Conversation, error) {
 // CreateConversation opens a new chat thread for agentKey with an initial title.
 // llmProfileID may be nil to use the globally active profile.
 func (d *DB) CreateConversation(agentKey, title string, llmProfileID *int64) (*Conversation, error) {
+	mode := ConversationModePentest
+	if agentKey == "reverse" {
+		mode = ConversationModeReverse
+	}
+	return d.CreateConversationInMode(agentKey, mode, title, llmProfileID)
+}
+
+// CreateConversationInMode opens a conversation in one isolated product mode.
+// Existing callers retain pentest mode; the dedicated reverse agent is routed to
+// reverse mode so scheduler-created sessions cannot be mislabeled.
+func (d *DB) CreateConversationInMode(agentKey, mode, title string, llmProfileID *int64) (*Conversation, error) {
+	if !ValidConversationMode(mode) {
+		return nil, errors.New("invalid conversation mode")
+	}
+	if (mode == ConversationModeReverse && agentKey != "reverse") ||
+		(mode == ConversationModePentest && agentKey == "reverse") {
+		return nil, errors.New("conversation agent does not match mode")
+	}
 	tx, err := d.Begin()
 	if err != nil {
 		return nil, err
@@ -92,8 +121,8 @@ func (d *DB) CreateConversation(agentKey, title string, llmProfileID *int64) (*C
 	// by this transaction before it takes a profile lock, matching DeleteProfile's
 	// child-row -> profile-row protocol.
 	c, err := scanConv(tx.QueryRow(`
-INSERT INTO conversations(agent_key, title, llm_profile_id) VALUES ($1, $2, NULL)
-RETURNING `+convCols, agentKey, title))
+INSERT INTO conversations(agent_key, mode, title, llm_profile_id) VALUES ($1, $2, $3, NULL)
+RETURNING `+convCols, agentKey, mode, title))
 	if err != nil {
 		return nil, err
 	}
@@ -140,8 +169,21 @@ func (d *DB) UpdateConversationProfile(id int64, llmProfileID *int64) error {
 
 // ListConversations returns all threads, most-recently-updated first.
 func (d *DB) ListConversations() ([]*Conversation, error) {
-	rows, err := d.Query(`SELECT ` + convCols + ` FROM conversations
-ORDER BY (pinned_at IS NOT NULL) DESC, pinned_at DESC NULLS LAST, updated_at DESC, id DESC`)
+	return d.listConversations(``)
+}
+
+// ListConversationsInMode returns only threads belonging to one product mode.
+// The mode column is the durable boundary between pentest and reverse histories.
+func (d *DB) ListConversationsInMode(mode string) ([]*Conversation, error) {
+	if !ValidConversationMode(mode) {
+		return nil, errors.New("invalid conversation mode")
+	}
+	return d.listConversations(`WHERE mode=$1`, mode)
+}
+
+func (d *DB) listConversations(filter string, args ...any) ([]*Conversation, error) {
+	rows, err := d.Query(`SELECT `+convCols+` FROM conversations `+filter+`
+ORDER BY (pinned_at IS NOT NULL) DESC, pinned_at DESC NULLS LAST, updated_at DESC, id DESC`, args...)
 	if err != nil {
 		return nil, err
 	}

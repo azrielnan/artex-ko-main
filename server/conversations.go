@@ -39,6 +39,8 @@ const (
 	convErrAgentKeyTooLong = "agent_key 는 최대 %d자까지 입력할 수 있습니다"
 	convErrAgentNotFound   = "에이전트를 찾을 수 없습니다"
 	convErrLLMProfile      = "지정한 LLM 설정이 존재하지 않거나 API Key 가 설정되지 않았습니다"
+	convErrModeInvalid     = "对话模式无效"
+	convErrModeAgent       = "逆向分析模式只能使用逆向分析 Agent，安全测试模式不能使用该 Agent"
 	convErrTitleTooLong    = "제목은 최대 %d자까지 입력할 수 있습니다"
 	convErrTitleOrPinned   = "title 또는 pinned 중 하나 이상을 제공해야 합니다"
 	convErrTitleEmpty      = "제목은 비어 있을 수 없습니다"
@@ -106,7 +108,15 @@ func (s *Server) pgListConversations(w http.ResponseWriter, r *http.Request) {
 	if pg == nil {
 		return
 	}
-	cs, err := pg.ListConversations()
+	mode := r.URL.Query().Get("mode")
+	if mode == "" {
+		mode = db.ConversationModePentest
+	}
+	if !db.ValidConversationMode(mode) {
+		writeErr(w, http.StatusBadRequest, convErrModeInvalid)
+		return
+	}
+	cs, err := pg.ListConversationsInMode(mode)
 	if err != nil {
 		writeErr(w, 500, err.Error())
 		return
@@ -127,10 +137,18 @@ func (s *Server) pgCreateConversation(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		AgentKey     string `json:"agent_key"`
+		Mode         string `json:"mode"`
 		Title        string `json:"title"`
 		LLMProfileID *int64 `json:"llm_profile_id"`
 	}
 	if !decodeConversationRequest(w, r, &req) {
+		return
+	}
+	if req.Mode == "" {
+		req.Mode = db.ConversationModePentest
+	}
+	if !db.ValidConversationMode(req.Mode) {
+		writeErr(w, http.StatusBadRequest, convErrModeInvalid)
 		return
 	}
 	req.AgentKey = strings.TrimSpace(req.AgentKey)
@@ -151,6 +169,11 @@ func (s *Server) pgCreateConversation(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 404, convErrAgentNotFound)
 		return
 	}
+	if (req.Mode == db.ConversationModeReverse && req.AgentKey != "reverse") ||
+		(req.Mode == db.ConversationModePentest && req.AgentKey == "reverse") {
+		writeErr(w, http.StatusBadRequest, convErrModeAgent)
+		return
+	}
 	if req.LLMProfileID != nil {
 		if _, ok := s.loadProfileConfig(*req.LLMProfileID); !ok {
 			writeErr(w, 400, convErrLLMProfile)
@@ -165,7 +188,7 @@ func (s *Server) pgCreateConversation(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, fmt.Sprintf(convErrTitleTooLong, maxConversationTitleRunes))
 		return
 	}
-	c, err := pg.CreateConversation(req.AgentKey, title, req.LLMProfileID)
+	c, err := pg.CreateConversationInMode(req.AgentKey, req.Mode, title, req.LLMProfileID)
 	if err != nil {
 		writeErr(w, 500, err.Error())
 		return

@@ -3188,6 +3188,47 @@ export const agents: Agent[] = [
     skill_count: 1,
     tool_count: 4,
   },
+  {
+    id: "6",
+    key: "auto",
+    name: "Auto",
+    role: "assistant",
+    builtin: true,
+    enabled: true,
+    description: "管理平台内的任务与资产。",
+    max_turns: 0,
+    mcp_count: 0,
+    skill_count: 0,
+    tool_count: 6,
+  },
+  {
+    id: "7",
+    key: "pentest",
+    name: "渗透测试",
+    role: "assistant",
+    builtin: true,
+    enabled: true,
+    description: "用于独立安全测试会话。",
+    max_turns: 0,
+    mcp_count: 0,
+    skill_count: 0,
+    tool_count: 6,
+  },
+  {
+    id: "8",
+    key: "reverse",
+    name: "逆向分析",
+    role: "assistant",
+    builtin: true,
+    enabled: true,
+    description: "使用 REA 分析用户提供的二进制、应用、源码包或运行时证据。",
+    max_turns: 0,
+    run_seconds: 1200,
+    web_search: false,
+    mcp_count: 1,
+    skill_count: 1,
+    tool_count: 8,
+  },
 ];
 
 const promptVars: PromptVar[] = [
@@ -3626,6 +3667,7 @@ export const conversations: Conversation[] = [
   {
     id: 1,
     agent_key: "mainagent",
+    mode: "pentest",
     title: "acme 백오피스 침투 지점 논의",
     llm_profile_id: 1,
     pinned: true,
@@ -3636,6 +3678,7 @@ export const conversations: Conversation[] = [
   {
     id: 2,
     agent_key: "mainagent",
+    mode: "pentest",
     title: "API 권한 우회 공격면 정리",
     llm_profile_id: 2,
     created_at: T("2026-07-24T16:00:00Z"),
@@ -3644,14 +3687,41 @@ export const conversations: Conversation[] = [
   {
     id: 3,
     agent_key: "mainagent",
+    mode: "pentest",
     title: "내부망 횡적 이동 · DMZ→도메인 컨트롤러 공격 경로 계획",
     llm_profile_id: 1,
     created_at: T("2026-07-25T15:45:00Z"),
     updated_at: T("2026-07-26T00:25:00Z"),
   },
+  {
+    id: 4,
+    agent_key: "reverse",
+    mode: "reverse",
+    title: "样本的模块结构与启动流程",
+    pinned: false,
+    created_at: T("2026-07-26T09:00:00Z"),
+    updated_at: T("2026-07-26T09:03:00Z"),
+  },
 ];
 
 export const conversationMessages: Record<number, Activity[]> = {
+  4: [
+    {
+      seq: 1,
+      worker: "user",
+      ts: T("2026-07-26T09:00:00Z"),
+      kind: "user",
+      summary: "梳理这个样本的模块结构和启动流程，并把已观察到的证据与推断分开。",
+    },
+    {
+      seq: 2,
+      worker: "reverse",
+      ts: T("2026-07-26T09:00:02Z"),
+      kind: "text",
+      summary:
+        "请上传样本或指定本地文件路径。我会先读取格式与模块清单，再沿入口函数追踪启动流程；每项结论都会注明证据位置与分析限制。",
+    },
+  ],
   1: [
     {
       seq: 1,

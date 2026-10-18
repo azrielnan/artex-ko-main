@@ -2810,6 +2810,15 @@
   "chat": {
     "live": "实时",
     "custom": "自定义",
+    "modeSwitch": {
+      "label": "对话模式",
+      "pentest": "安全测试",
+      "reverse": "逆向分析",
+      "pentestNote": "安全测试对话与逆向分析历史分开保存。",
+      "reverseNote": "仅显示逆向分析对话。首次使用前，请在系统设置中启用 REA MCP。",
+      "reverseAgent": "逆向分析 Agent"
+    },
+    "agentFallback": "智能体",
     "emptyStart": "开始和「{agent}」对话",
     "turnsTooltip": "agent 循环轮次（模型调用次数）",
     "turnsCount": "{turns} 轮",

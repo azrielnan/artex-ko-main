@@ -735,10 +735,13 @@ export interface FindingRetest {
   finished_at: string | null;
 }
 
+export type ConversationMode = "pentest" | "reverse";
+
 export interface Conversation {
   id: number;
   running?: boolean; // live server state, returned with the conversation list
   agent_key: string;
+  mode: ConversationMode;
   title: string;
   llm_profile_id?: number;
   pinned?: boolean;

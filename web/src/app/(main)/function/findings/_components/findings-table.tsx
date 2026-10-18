@@ -277,7 +277,7 @@ export function FindingsTable({
                   <div className="flex items-center gap-1">
                     {retest ? (
                       <Button asChild size="sm" variant="ghost">
-                        <Link href={`/chat?c=${retest.conversation_id}`} title={t("table.retestingTitle")}>
+                        <Link href={`/chat?mode=pentest&c=${retest.conversation_id}`} title={t("table.retestingTitle")}>
                           <Spinner data-icon="inline-start" />
                           {t("table.retesting")}
                         </Link>

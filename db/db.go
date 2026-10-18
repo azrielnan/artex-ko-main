@@ -196,6 +196,7 @@ var builtinAgents = []builtinAgent{
 	{"auto", "Auto", "assistant", "平台操作助手：用工具管理任务(建/看/暂停/给提示)与资产，并可创建/修改 skill、自定义工具、MCP。", nil, false, nil},
 	// 渗透测试:内置「独立渗透」agent。经对话页驱动,一人从侦察到收尾走完整条渗透链,自己规划自己执行自己验证。默认开启交互式 shell。
 	{"pentest", "渗透测试", "assistant", "独立渗透 agent：一人从侦察→找攻击面→深入利用→验证→收尾走完整条链，自己规划、自己执行、自己对抗式验证。", nil, true, intp(0)},
+	{"reverse", "逆向分析", "assistant", "独立逆向分析 agent：使用 REA 分析用户提供的二进制、应用、源码包或运行时证据。", nil, false, intp(1200)},
 }
 
 // seedBuiltins inserts the fixed built-in agents and their variable catalog (idempotent).
@@ -249,11 +250,23 @@ ON CONFLICT (name) DO NOTHING`,
 		`["@playwright/mcp","--headless"]`); err != nil {
 		return fmt.Errorf("seed browser mcp: %w", err)
 	}
+	// REA's official MCP is version-pinned and disabled until a user enables it.
+	// Enabling may download the npm package and run user-selected local analyzers;
+	// do not start it or fetch it implicitly during application startup.
+	if _, err := d.Exec(`
+INSERT INTO mcp_servers(name, transport, command, args, env, enabled)
+VALUES ('REA', 'stdio', 'npx', $1, '{}', false)
+ON CONFLICT (name) DO NOTHING`, `["-y","rea-agents@6.5.0","mcp"]`); err != nil {
+		return fmt.Errorf("seed REA MCP: %w", err)
+	}
 	// NOTE: the placeholder ScopeSentry data-source MCP (empty URL + empty X-API-Key,
 	// disabled) is seeded directly in schema.sql §F so a raw `psql < schema.sql` init
 	// also gets it. schema.sql is Exec'd on every startup, so it stays idempotent.
 	if err := d.seedBuiltinSkillVisibility(); err != nil {
 		return fmt.Errorf("seed skill visibility: %w", err)
+	}
+	if err := d.seedReverseMCPVisibility(); err != nil {
+		return fmt.Errorf("seed reverse MCP visibility: %w", err)
 	}
 	if err := d.seedDefaultInterceptRules(); err != nil {
 		return fmt.Errorf("seed intercept rules: %w", err)
@@ -307,7 +320,18 @@ ON CONFLICT DO NOTHING`, r.kind, r.pattern, r.note); err != nil {
 // declares `mcps: ScopeSentry`, which only takes effect once it's made visible and
 // that MCP is enabled/configured.
 var builtinSkillVisibility = map[string][]string{
-	"api-recon": {"auto", "pentest", "worker"},
+	"api-recon":               {"auto", "pentest", "worker"},
+	"rea-reverse-engineering": {"reverse"},
+}
+
+func (d *DB) seedReverseMCPVisibility() error {
+	_, err := d.Exec(`
+INSERT INTO agent_visibility(agent_id, resource_kind, resource_id, enabled)
+SELECT agent.id, 'mcp', mcp.id, true
+FROM agents AS agent CROSS JOIN mcp_servers AS mcp
+WHERE agent.key='reverse' AND mcp.name='REA'
+ON CONFLICT (agent_id, resource_kind, resource_id, mcp_tool_name) DO NOTHING`)
+	return err
 }
 
 // seedBuiltinSkillVisibility binds the shipped built-in skills to their default
