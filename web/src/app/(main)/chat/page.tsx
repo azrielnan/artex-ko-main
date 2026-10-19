@@ -415,8 +415,7 @@ function DraftChat({
   const [sending, setSending] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
 
-  // Reverse mode is pinned to its dedicated REA-backed agent. Pentest keeps the
-  // existing Auto-first behavior and can still use other conversational agents.
+  // Reverse mode is pinned to its REA-backed agent; security testing keeps Auto-first behavior.
   React.useEffect(() => {
     setAgentKey(mode === "reverse" ? "reverse" : "auto");
   }, [mode]);

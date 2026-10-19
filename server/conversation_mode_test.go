@@ -43,16 +43,20 @@ func TestConversationModeAPIIsolation(t *testing.T) {
 	}
 
 	title := fmt.Sprintf("mode-api-%d", time.Now().UnixNano())
-	var pentest, reverse db.Conversation
+	var pentest, reverse, dedicatedPentest db.Conversation
 	if code := do(http.MethodPost, "/api/conversations", map[string]any{"agent_key": "auto", "mode": "pentest", "title": title + "-p"}, &pentest); code != http.StatusOK {
 		t.Fatalf("create pentest status=%d", code)
 	}
 	if code := do(http.MethodPost, "/api/conversations", map[string]any{"agent_key": "reverse", "mode": "reverse", "title": title + "-r"}, &reverse); code != http.StatusOK {
 		t.Fatalf("create reverse status=%d", code)
 	}
+	if code := do(http.MethodPost, "/api/conversations", map[string]any{"agent_key": "pentest", "mode": "pentest", "title": title + "-p-agent"}, &dedicatedPentest); code != http.StatusOK {
+		t.Fatalf("create pentest agent conversation status=%d", code)
+	}
 	t.Cleanup(func() {
 		_ = m.pg.DeleteConversation(pentest.ID)
 		_ = m.pg.DeleteConversation(reverse.ID)
+		_ = m.pg.DeleteConversation(dedicatedPentest.ID)
 	})
 	if pentest.Mode != db.ConversationModePentest || reverse.Mode != db.ConversationModeReverse {
 		t.Fatalf("created modes = %q and %q", pentest.Mode, reverse.Mode)
@@ -84,6 +88,9 @@ func TestConversationModeAPIIsolation(t *testing.T) {
 
 	if code := do(http.MethodPost, "/api/conversations", map[string]any{"agent_key": "reverse", "mode": "pentest"}, nil); code != http.StatusBadRequest {
 		t.Fatalf("reverse Agent in pentest mode status=%d, want 400", code)
+	}
+	if dedicatedPentest.Mode != db.ConversationModePentest {
+		t.Fatalf("pentest Agent conversation mode = %q", dedicatedPentest.Mode)
 	}
 	if code := do(http.MethodPost, "/api/conversations", map[string]any{"agent_key": "auto", "mode": "reverse"}, nil); code != http.StatusBadRequest {
 		t.Fatalf("non-reverse Agent in reverse mode status=%d, want 400", code)

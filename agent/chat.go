@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Autumn-27/artex/db"
@@ -12,6 +13,7 @@ import (
 	"github.com/Autumn-27/norma/agentcore"
 	"github.com/Autumn-27/norma/llm"
 	"github.com/Autumn-27/norma/permission"
+	"github.com/Autumn-27/norma/subagent"
 	actool "github.com/Autumn-27/norma/tool"
 	"github.com/Autumn-27/norma/transcript"
 )
@@ -84,7 +86,67 @@ func chatWorkDirSpec(workDir string) string {
 // chatSystem renders the DB-managed prompt body for agentKey. Custom agents have
 // no per-key in-code default, so DefaultAssistantPrompt is the render fallback.
 func chatSystem(agentKey, dataDir, workDir string) string {
-	return renderSystem(agentKey, DefaultAssistantPrompt, chatVars{DataDir: dataDir, Now: nowStr()}) + chatWorkDirSpec(workDir) + langDirective()
+	system := renderSystem(agentKey, DefaultAssistantPrompt, chatVars{DataDir: dataDir, Now: nowStr()})
+	if agentKey == "reverse" {
+		// Keep the coordination contract effective for existing installations whose
+		// editable DB prompt predates the dedicated reverse subagents.
+		system += reverseCoordinationBlock()
+	}
+	return system + chatWorkDirSpec(workDir) + langDirective()
+}
+
+func reverseCoordinationBlock() string {
+	return `
+
+【逆向 Agent 协调边界（运行时强制）】
+本会话必须保持逆向与安全测试上下文隔离。复杂分析按以下顺序协调：
+1. 用 Agent 调用 reverse-worker 执行一条明确的只读逆向路线；
+2. 用 Agent 调用 reverse-regression 独立复核关键结论，寻找反例或证据缺口；
+3. 用 Agent 调用 reverse-supervisor 检查证据、范围隔离、回归结果和遗漏；监督未通过时不得宣称结论已确认。
+三个子 Agent 只使用只读本地检查工具和当前逆向会话可见的 REA/MCP 工具，不得使用渗透、资产、漏洞上报或平台管理工具。最终回答必须区分直接观察、推断、未知和回归状态。`
+}
+
+// reverseSubagentDefinitions describes the isolated specialist lanes exposed
+// only by the reverse-analysis conversation agent. The parent decides when to
+// delegate; each child receives a focused prompt and its own sidechain transcript.
+func reverseSubagentDefinitions() map[string]subagent.Definition {
+	return map[string]subagent.Definition{
+		"reverse-worker": {
+			Description: "执行一条明确的逆向分析路线，返回带证据的事实、偏移、函数或调用链。",
+			Prompt:      []string{`你是逆向分析执行子 Agent。只处理父 Agent 分配的一个明确分析问题，使用可用的 REA MCP 和本地只读工具取得证据。不要做网络渗透、漏洞利用、破解或越权操作，不要修改原始样本。输出：已执行的步骤、关键证据、结论、未解决问题和建议的下一步。所有结论标注直接观察或推断。`},
+			// REA MCP tools do not advertise read-only metadata; the explicit tool
+			// allowlist below is the boundary, so bypass is needed for MCP calls.
+			PermissionMode: permission.ModeBypass,
+			MaxTurns:       12,
+		},
+		"reverse-regression": {
+			Description:    "独立回归验证逆向结论，尝试复现行为并指出不一致或证据缺口。",
+			Prompt:         []string{`你是逆向分析回归测试子 Agent。独立复核父 Agent 或执行子 Agent 提供的结论，优先使用不同的入口、函数引用、版本对照或最小可复现步骤。只读分析，不修改样本，不连接外部目标。明确写出复现结果、失败原因、证据位置和是否通过回归。不要把推测写成事实。`},
+			PermissionMode: permission.ModeBypass,
+			MaxTurns:       10,
+		},
+		"reverse-supervisor": {
+			Description:    "监督逆向分析质量，检查证据、范围隔离、回归结果和遗漏的风险。",
+			Prompt:         []string{`你是逆向分析监督子 Agent。审查父 Agent 汇总的执行与回归结果，检查证据是否可核验、是否混入安全测试上下文、是否遗漏关键引用或相互矛盾。只提出基于现有材料的整改项和下一步，不自行扩展目标，不修改文件。输出通过项、阻塞项、证据缺口和最终建议。`},
+			PermissionMode: permission.ModeBypass,
+			MaxTurns:       8,
+		},
+	}
+}
+
+func reverseSubagentToolNames(tools []actool.CoreTool) []string {
+	var names []string
+	for _, t := range tools {
+		name := t.Name()
+		lower := strings.ToLower(name)
+		// Keep the normal local inspection tools and all REA/MCP tools. The
+		// subagents intentionally do not receive platform/pentest domain tools.
+		if name == "Read" || name == "LS" || name == "Glob" || name == "Grep" ||
+			strings.HasPrefix(lower, "mcp__rea__") {
+			names = append(names, name)
+		}
+	}
+	return names
 }
 
 // chatVars carries the runtime variables a custom agent's prompt may reference.
@@ -122,6 +184,25 @@ func (c *ChatAgent) Chat(ctx context.Context, agentKey, sessionID, message strin
 	ctx = WithRunInfo(ctx, RunInfo{SessionID: sessionID})
 	tools, def, cleanup := AugmentTools(ctx, agentKey, base)
 	defer cleanup()
+	if agentKey == "reverse" {
+		// The reverse parent is the only chat agent allowed to delegate. Child
+		// agents inherit the already-connected REA tools but are restricted to
+		// read-only inspection names, keeping pentest/platform tools out.
+		parentTools := actool.NewRegistry(tools...)
+		childDefs := reverseSubagentDefinitions()
+		allowedChildTools := reverseSubagentToolNames(tools)
+		for key, child := range childDefs {
+			child.Tools = allowedChildTools
+			childDefs[key] = child
+		}
+		tools = append(tools, subagent.NewTool(subagent.Config{
+			Provider:    c.prov,
+			ParentTools: parentTools,
+			Agents:      childDefs,
+			MaxDepth:    1,
+			Transcript:  c.tx,
+		}))
+	}
 
 	system, boundary := deferredSystem(chatSystem(agentKey, c.workDir, sessionWorkDir), def)
 	opts := agentcore.Options{
