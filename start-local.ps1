@@ -82,7 +82,8 @@ for ($attempt = 0; $attempt -lt 30; $attempt++) {
 if (-not $pgReady) { throw "PostgreSQL 在 30 秒内没有就绪。" }
 
 $dbExists = & (Join-Path $pgBin "psql.exe") -h 127.0.0.1 -p 5433 -U artex -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='artex'"
-if ($dbExists.Trim() -ne "1") {
+$dbExistsText = if ($null -eq $dbExists) { "" } else { [string]$dbExists }
+if ($dbExistsText.Trim() -ne "1") {
   & (Join-Path $pgBin "createdb.exe") -h 127.0.0.1 -p 5433 -U artex artex
   if ($LASTEXITCODE -ne 0) { throw "无法创建 artex 数据库（$LASTEXITCODE）。" }
 }
@@ -107,6 +108,12 @@ for ($attempt = 0; $attempt -lt 60; $attempt++) {
   if ($ready -and $ready.ok -and $ready.database -eq "ready") {
     Write-Output "ARTEX 已就绪：http://127.0.0.1:8787"
     Write-Output "数据库已就绪：127.0.0.1:5433/artex"
+    try {
+      Start-Process "http://127.0.0.1:8787/function/tasks" | Out-Null
+      Write-Output "已打开浏览器任务页。"
+    } catch {
+      Write-Warning "浏览器未能自动打开，请手动访问：http://127.0.0.1:8787/function/tasks"
+    }
     exit 0
   }
   Start-Sleep -Seconds ([Math]::Min(2, 1 + [int]($attempt / 15)))

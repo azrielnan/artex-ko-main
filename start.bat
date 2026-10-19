@@ -22,7 +22,13 @@ cd /d "%~dp0"
 rem Windows 便携包优先使用包内 PostgreSQL 和 readiness 自检。
 if exist "%~dp0start-local.ps1" if exist "%~dp0runtime\pgsql\bin\pg_ctl.exe" (
     powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0start-local.ps1" %*
-    exit /b %ERRORLEVEL%
+    set "PORTABLE_RC=%ERRORLEVEL%"
+    if not "!PORTABLE_RC!"=="0" (
+        echo [artex] 启动失败，错误码 !PORTABLE_RC! 1>&2
+        echo [artex] 请查看 data\postgres.log、data\artex.stderr.log 1>&2
+        pause
+    )
+    exit /b !PORTABLE_RC!
 )
 
 set "BIN=artex.exe"
