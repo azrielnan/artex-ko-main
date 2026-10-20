@@ -746,6 +746,7 @@ export interface Conversation {
   llm_profile_id?: number;
   pinned?: boolean;
   pinned_at?: string | null;
+  parent_conversation_id?: number;
   created_at: string;
   updated_at: string;
 }

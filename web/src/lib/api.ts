@@ -1057,6 +1057,7 @@ export const api = {
     llm_profile_id?: number | null,
     mode: Conversation["mode"] = "pentest",
   ) => post<Conversation>("/conversations", { agent_key, title, llm_profile_id: llm_profile_id ?? null, mode }),
+  branchConversation: (id: number, title = "") => post<Conversation>(`/conversations/${id}/branch`, { title }),
   updateConversation: (id: number, input: { title?: string; pinned?: boolean }) =>
     patch<Conversation>(`/conversations/${id}`, input),
   renameConversation: (id: number, title: string) => patch<Conversation>(`/conversations/${id}`, { title }),

@@ -2,11 +2,13 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log"
 	"math"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -194,6 +196,111 @@ func (s *Server) pgCreateConversation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, c)
+}
+
+// pgBranchConversation creates an isolated child thread. The database transcript
+// and the on-disk agent session are copied so the new branch can continue from
+// the same point without sharing future turns or files with its parent.
+func (s *Server) pgBranchConversation(w http.ResponseWriter, r *http.Request) {
+	pg, source, ok := s.convByID(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Title string `json:"title"`
+	}
+	if !decodeConversationRequest(w, r, &req) {
+		return
+	}
+	title := strings.TrimSpace(req.Title)
+	if utf8.RuneCountInString(title) > maxConversationTitleRunes {
+		writeErr(w, http.StatusBadRequest, fmt.Sprintf(convErrTitleTooLong, maxConversationTitleRunes))
+		return
+	}
+	branch, err := pg.BranchConversation(source.ID, title)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeErr(w, http.StatusNotFound, "conversation not found")
+			return
+		}
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if err := s.copyConversationArtifacts(source.ID, branch.ID); err != nil {
+		log.Printf("[conversation %d] branch artifact copy failed: %v", source.ID, err)
+		s.removeConversationArtifacts(branch.ID)
+		_ = pg.DeleteConversation(branch.ID)
+		writeErr(w, http.StatusInternalServerError, "无法复制对话上下文："+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, branch)
+}
+
+func (s *Server) copyConversationArtifacts(sourceID, branchID int64) error {
+	sourceKey, branchKey := s.convBusyKey(sourceID), s.convBusyKey(branchID)
+	items := []struct{ src, dst string }{
+		{filepath.Join(s.m.dir, "transcripts", sourceKey+".jsonl"), filepath.Join(s.m.dir, "transcripts", branchKey+".jsonl")},
+		{filepath.Join(s.m.dir, "sessions", sourceKey), filepath.Join(s.m.dir, "sessions", branchKey)},
+		{filepath.Join(s.m.dir, "noa", "chat-"+sourceKey), filepath.Join(s.m.dir, "noa", "chat-"+branchKey)},
+	}
+	for _, item := range items {
+		if _, err := os.Stat(item.src); errors.Is(err, os.ErrNotExist) {
+			continue
+		} else if err != nil {
+			return err
+		}
+		if filepath.Ext(item.src) == ".jsonl" {
+			data, err := os.ReadFile(item.src)
+			if err != nil {
+				return err
+			}
+			if err := os.MkdirAll(filepath.Dir(item.dst), 0o755); err != nil {
+				return err
+			}
+			if err := os.WriteFile(item.dst, data, 0o644); err != nil {
+				return err
+			}
+			continue
+		}
+		err := filepath.WalkDir(item.src, func(path string, entry os.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.Type()&os.ModeSymlink != 0 {
+				return nil
+			}
+			rel, err := filepath.Rel(item.src, path)
+			if err != nil {
+				return err
+			}
+			target := filepath.Join(item.dst, rel)
+			if entry.IsDir() {
+				return os.MkdirAll(target, 0o755)
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			return os.WriteFile(target, data, 0o644)
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Server) removeConversationArtifacts(id int64) {
+	key := s.convBusyKey(id)
+	for _, path := range []string{
+		filepath.Join(s.m.dir, "transcripts", key+".jsonl"),
+		filepath.Join(s.m.dir, "sessions", key),
+		filepath.Join(s.m.dir, "noa", "chat-"+key),
+	} {
+		if err := os.RemoveAll(path); err != nil {
+			log.Printf("[conversation %d] remove partial branch artifact %q: %v", id, path, err)
+		}
+	}
 }
 
 func (s *Server) pgUpdateConversation(w http.ResponseWriter, r *http.Request) {

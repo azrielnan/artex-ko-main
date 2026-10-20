@@ -9,6 +9,7 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   FolderOpenIcon,
+  GitBranchIcon,
   ListChecksIcon,
   Loader2Icon,
   MoreHorizontalIcon,
@@ -186,6 +187,7 @@ function Composer({
 }) {
   const t = useTranslations("chat");
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [dragActive, setDragActive] = React.useState(false);
   const atts = attachments ?? [];
   // 전송 키는 시스템 설정(localStorage)으로 결정하며, 기본값은 Enter 전송이다.
   const sendMode = useChatSendMode();
@@ -194,8 +196,33 @@ function Composer({
     e.preventDefault();
     onSend();
   }
+  function filesFromClipboard(event: React.ClipboardEvent) {
+    return Array.from(event.clipboardData.items)
+      .filter((item) => item.kind === "file")
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => file !== null);
+  }
   return (
-    <div className="border-t p-3">
+    <div
+      className={cn("border-t p-3 transition-colors", dragActive && "bg-primary/5")}
+      onDragOver={(event) => {
+        if (!folderMode || !event.dataTransfer.types.includes("Files")) return;
+        event.preventDefault();
+        setDragActive(true);
+      }}
+      onDragLeave={(event) => {
+        if (event.currentTarget === event.target) setDragActive(false);
+      }}
+      onDrop={(event) => {
+        if (!folderMode) return;
+        const files = Array.from(event.dataTransfer.files);
+        if (files.length === 0) return;
+        event.preventDefault();
+        setDragActive(false);
+        onPickFiles?.(files);
+      }}
+    >
+      {dragActive && <div className="text-primary mb-2 text-center text-xs">松开以添加到逆向分析会话</div>}
       {atts.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-1.5">
           {atts.map((a) => (
@@ -266,6 +293,13 @@ function Composer({
           disabled={disabled && !(running && allowBtw)}
           onValueChange={onChange}
           onKeyDown={onKeyDown}
+          onPaste={(event) => {
+            if (!folderMode) return;
+            const files = filesFromClipboard(event);
+            if (files.length === 0) return;
+            event.preventDefault();
+            onPickFiles?.(files);
+          }}
         />
         {running && allowBtw && isBtwCommand(value) && (
           <Button
@@ -530,6 +564,7 @@ function ChatView({
   initial,
   onTitleMaybeChanged,
   onConvUpdated,
+  onBranch,
 }: {
   conv: Conversation;
   agents: Agent[];
@@ -539,6 +574,7 @@ function ChatView({
   initial?: { input?: string; attachments?: ChatAttachment[] };
   onTitleMaybeChanged: () => void;
   onConvUpdated: () => void;
+  onBranch: (conversation: Conversation) => void;
 }) {
   const t = useTranslations("chat");
   const approvalFocus = useApprovalFocus({ conversationId: conv.id });
@@ -831,6 +867,17 @@ function ChatView({
           <span className="text-muted-foreground min-w-0 truncate text-xs">{agent.description}</span>
         )}
         {running && <LiveBadge />}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-7 shrink-0 gap-1 px-2 text-xs"
+          onClick={() => onBranch(conv)}
+          title={t("item.branch")}
+        >
+          <GitBranchIcon className="size-3.5" />
+          {t("item.branch")}
+        </Button>
         <SideQuestionButton side={side} />
         <div className="text-muted-foreground ml-auto flex min-w-0 max-w-full items-center justify-end gap-x-3 gap-y-1 text-xs max-sm:w-full max-sm:flex-wrap">
           {tokenTotal.turns > 0 && (
@@ -1460,6 +1507,18 @@ export default function ChatPage() {
     [reloadConvs, t],
   );
 
+  const branchConversation = React.useCallback(async (conversation: Conversation) => {
+    try {
+      const branch = await api.branchConversation(conversation.id);
+      setConvs((items) => [branch, ...items.filter((item) => item.id !== branch.id)]);
+      setSelectedId(branch.id);
+      toast.success(t("toast.branchCreated"));
+      void reloadConvs();
+    } catch (error) {
+      toast.error(t("toast.branchFailed", { msg: (error as Error).message }));
+    }
+  }, [reloadConvs, t]);
+
   const startRename = React.useCallback((c: Conversation) => {
     setRenamingId(c.id);
     setRenameText(c.title || "");
@@ -1677,6 +1736,7 @@ export default function ChatPage() {
               initial={pendingByConv[selected.id]}
               onTitleMaybeChanged={reloadConvs}
               onConvUpdated={reloadConvs}
+              onBranch={branchConversation}
             />
           ) : sourceRequested ? (
             <div role="status" className="p-6 text-sm text-muted-foreground">

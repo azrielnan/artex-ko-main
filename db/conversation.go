@@ -67,6 +67,7 @@ type Conversation struct {
 	LLMProfileID *int64     `json:"llm_profile_id,omitempty"`
 	Pinned       bool       `json:"pinned"`
 	PinnedAt     *time.Time `json:"pinned_at,omitempty"`
+	ParentID     *int64     `json:"parent_conversation_id,omitempty"`
 	CreatedAt    time.Time  `json:"created_at"`
 	UpdatedAt    time.Time  `json:"updated_at"`
 }
@@ -77,17 +78,52 @@ type ConversationPatch struct {
 	Pinned *bool
 }
 
-const convCols = `id, agent_key, mode, title, llm_profile_id, pinned_at, created_at, updated_at`
+const convCols = `id, agent_key, mode, title, llm_profile_id, pinned_at, parent_conversation_id, created_at, updated_at`
 
 func scanConv(row interface{ Scan(...any) error }) (Conversation, error) {
 	var c Conversation
 	var pinnedAt sql.NullTime
-	err := row.Scan(&c.ID, &c.AgentKey, &c.Mode, &c.Title, &c.LLMProfileID, &pinnedAt, &c.CreatedAt, &c.UpdatedAt)
+	var parentID sql.NullInt64
+	err := row.Scan(&c.ID, &c.AgentKey, &c.Mode, &c.Title, &c.LLMProfileID, &pinnedAt, &parentID, &c.CreatedAt, &c.UpdatedAt)
 	if pinnedAt.Valid {
 		c.Pinned = true
 		c.PinnedAt = &pinnedAt.Time
 	}
+	if parentID.Valid {
+		c.ParentID = &parentID.Int64
+	}
 	return c, err
+}
+
+// BranchConversation creates a new independent conversation with a snapshot of
+// the source transcript rows. New turns are written only to the returned branch.
+func (d *DB) BranchConversation(sourceID int64, title string) (*Conversation, error) {
+	tx, err := d.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	var source Conversation
+	var pinnedAt sql.NullTime
+	var parentID sql.NullInt64
+	if err := tx.QueryRow(`SELECT id,agent_key,mode,title,llm_profile_id,pinned_at,parent_conversation_id,created_at,updated_at FROM conversations WHERE id=$1 FOR SHARE`, sourceID).
+		Scan(&source.ID, &source.AgentKey, &source.Mode, &source.Title, &source.LLMProfileID, &pinnedAt, &parentID, &source.CreatedAt, &source.UpdatedAt); err != nil {
+		return nil, err
+	}
+	if title == "" {
+		title = source.Title + "（分支）"
+	}
+	c, err := scanConv(tx.QueryRow(`INSERT INTO conversations(agent_key,mode,title,llm_profile_id,parent_conversation_id) VALUES($1,$2,$3,$4,$5) RETURNING `+convCols, source.AgentKey, source.Mode, title, source.LLMProfileID, source.ID))
+	if err != nil {
+		return nil, err
+	}
+	if _, err := tx.Exec(`INSERT INTO conversation_activities(conversation_id,worker,kind,tool,tool_use_id,is_error,summary,detail,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,created_at) SELECT $2,worker,kind,tool,tool_use_id,is_error,summary,detail,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,created_at FROM conversation_activities WHERE conversation_id=$1 ORDER BY id`, sourceID, c.ID); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return &c, nil
 }
 
 // CreateConversation opens a new chat thread for agentKey with an initial title.

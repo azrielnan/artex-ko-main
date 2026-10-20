@@ -896,6 +896,7 @@ func (s *Server) Handler() http.Handler {
 	// conversations (chat page)
 	mux.HandleFunc("GET /api/conversations", s.pgListConversations)
 	mux.HandleFunc("POST /api/conversations", s.pgCreateConversation)
+	mux.HandleFunc("POST /api/conversations/{id}/branch", s.pgBranchConversation)
 	mux.HandleFunc("POST /api/conversations/delete/batch", s.pgDeleteConversationsBatch)
 	mux.HandleFunc("PATCH /api/conversations/{id}", s.pgRenameConversation)
 	mux.HandleFunc("PATCH /api/conversations/{id}/profile", s.pgUpdateConversation)

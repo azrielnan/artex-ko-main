@@ -2894,6 +2894,7 @@
       "pinnedAria": "已置顶",
       "runningTooltip": "Agent 正在运行",
       "manageAria": "管理对话「{title}」",
+      "branch": "新建分支",
       "rename": "重命名",
       "pin": "置顶",
       "unpin": "取消置顶",
@@ -2916,7 +2917,9 @@
       "deleteFailed": "删除失败：{msg}",
       "renameFailed": "重命名失败：{msg}",
       "pinFailed": "置顶失败：{msg}",
-      "unpinFailed": "取消置顶失败：{msg}"
+      "unpinFailed": "取消置顶失败：{msg}",
+      "branchCreated": "已从当前对话创建独立分支",
+      "branchFailed": "创建分支失败：{msg}"
     }
   },
   "linkTraffic": {
