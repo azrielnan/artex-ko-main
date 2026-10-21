@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [0.3.18] - 2026-10-21
+
+### 修复
+
+- Windows 首次启动现在保存 PostgreSQL `initdb` 原始输出到 `data/initdb.log`，GitHub Windows 发布回归也会保留该日志，便于定位干净环境初始化故障。
+- 发布构建在打包前验证 PostgreSQL 所需运行库 DLL，缺失时立即失败，不再生成无法初始化数据库的 Windows 包。
+
 ## [0.3.17] - 2026-10-21
 
 ### 新增与修复

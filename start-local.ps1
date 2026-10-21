@@ -44,8 +44,11 @@ try {
     $pgPort = Read-ArtexPort $pgPortFile $DatabasePort
     if (-not (Test-Path (Join-Path $pgData 'PG_VERSION'))) {
       if ((Test-Path $pgData) -and (Get-ChildItem -LiteralPath $pgData -Force | Select-Object -First 1)) { throw 'pgdata 非空但缺少 PG_VERSION。已保留数据，请备份后检查，不能自动重新初始化。' }
-      & "$pgBin\initdb.exe" -D $pgData -U artex --auth=trust -E UTF8 --no-locale
-      if ($LASTEXITCODE -ne 0) { throw "PostgreSQL 初始化失败（$LASTEXITCODE）。" }
+      $initdbLog = Join-Path $DataDir 'initdb.log'
+      # Keep native diagnostics: initdb can fail before postgres.log exists.
+      $initdbOutput = @(& "$pgBin\initdb.exe" -D $pgData -U artex --auth=trust -E UTF8 --no-locale 2>&1)
+      $initdbOutput | Add-Content -LiteralPath $initdbLog -Encoding UTF8
+      if ($LASTEXITCODE -ne 0) { throw "PostgreSQL 初始化失败（$LASTEXITCODE），详见 initdb.log。" }
     }
     & "$pgBin\pg_ctl.exe" -D $pgData status *> $null
     if ($LASTEXITCODE -eq 0) {

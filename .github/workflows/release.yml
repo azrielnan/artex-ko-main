@@ -67,6 +67,10 @@ jobs:
             test -n "$source_dll"
             cp "$source_dll" "$runtime_root/pgsql/bin/$dll"
           done
+          # Fail early when a native PostgreSQL dependency is absent.
+          for dll in vcruntime140.dll vcruntime140_1.dll libintl-9.dll libiconv-2.dll; do
+            test -f "$runtime_root/pgsql/bin/$dll"
+          done
           echo "ARTEX_PG_RUNTIME=$runtime_root/pgsql" >> "$GITHUB_ENV"
       - name: Prepare bundled REA MCP runtime
         env:
@@ -128,6 +132,7 @@ jobs:
           name: windows-startup-diagnostics
           path: |
             portable-test/**/launcher.log
+            portable-test/**/initdb.log
             portable-test/**/postgres.log
             portable-test/**/artex.stderr.log
 
