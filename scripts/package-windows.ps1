@@ -46,6 +46,7 @@ startup=start.bat / 启动.bat
 secrets=config.json,jwt.key,data/ intentionally excluded
 "@ | Set-Content -LiteralPath "$destination\RELEASE-MANIFEST.txt" -Encoding UTF8
 Add-Type -AssemblyName System.IO.Compression.FileSystem
+Add-Type -AssemblyName System.IO.Compression
 $outputZip = [IO.Compression.ZipFile]::Open($archive, [IO.Compression.ZipArchiveMode]::Create)
 try {
   foreach ($file in (Get-ChildItem -LiteralPath $destination -File -Recurse -Force)) {
