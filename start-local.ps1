@@ -1,170 +1,107 @@
 ﻿param(
-  [Parameter(ValueFromRemainingArguments = $true)]
-  [string[]]$ArtexArgs
+  [switch]$NoBrowser,
+  [string]$DataDir,
+  [ValidateRange(1024,65535)][int]$Port = 8787,
+  [ValidateRange(1024,65535)][int]$DatabasePort = 5433,
+  [Parameter(ValueFromRemainingArguments = $true)][string[]]$ArtexArgs
 )
-
-$ErrorActionPreference = "Stop"
-
+$ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
-$dataDir = Join-Path $root "data"
-$pgData = Join-Path $dataDir "pgdata"
-$pgLog = Join-Path $dataDir "postgres.log"
-$appOut = Join-Path $dataDir "artex.stdout.log"
-$appErr = Join-Path $dataDir "artex.stderr.log"
-$pgPortFile = Join-Path $dataDir "pg-port.txt"
-$appPortFile = Join-Path $dataDir "app-port.txt"
-New-Item -ItemType Directory -Path $dataDir -Force | Out-Null
-
-function Test-PortInUse([int]$Port) {
-  $connection = Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue | Select-Object -First 1
-  return $null -ne $connection
-}
-
-function Get-FreePort([int]$Preferred) {
-  if (-not (Test-PortInUse $Preferred)) { return $Preferred }
-  $listener = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Loopback, 0)
-  try {
-    $listener.Start()
-    return ([System.Net.IPEndPoint]$listener.LocalEndpoint).Port
-  } finally {
-    $listener.Stop()
-  }
-}
-
-function Read-Port([string]$Path, [int]$Fallback) {
-  if (Test-Path $Path) {
-    $value = (Get-Content $Path -Raw).Trim()
-    $port = 0
-    if ([int]::TryParse($value, [ref]$port) -and $port -ge 1024 -and $port -le 65535) {
-      return $port
+. (Join-Path $root 'scripts\windows-launcher-common.ps1')
+if (-not $DataDir) { $DataDir = Join-Path $root 'data' }
+$DataDir = [IO.Path]::GetFullPath($DataDir)
+New-Item -ItemType Directory -Path $DataDir -Force | Out-Null
+$lock = $null
+try {
+  $deadline = [DateTime]::UtcNow.AddSeconds(150)
+  while (-not $lock) {
+    try { $lock = [IO.File]::Open((Join-Path $DataDir 'startup.lock'), 'OpenOrCreate', 'ReadWrite', 'None') }
+    catch [IO.IOException] {
+      if ([DateTime]::UtcNow -gt $deadline) { throw '另一个启动程序长时间未完成，请查看 launcher.log。' }
+      Start-Sleep -Milliseconds 300
     }
   }
-  return $Fallback
-}
-
-function Find-PostgresRoot {
-  $candidates = @()
-  if ($env:ARTEX_PG_RUNTIME) { $candidates += $env:ARTEX_PG_RUNTIME }
-  $candidates += (Join-Path $root "runtime\pgsql")
-  $candidates += (Join-Path $root ".tools\pgsql\pgsql")
-  # 仅用于当前源码树开发；发布包不会依赖这个绝对路径。
-  $candidates += "E:\777\pgsql-portable\pgsql"
-  foreach ($candidate in $candidates) {
-    if ($candidate -and (Test-Path (Join-Path $candidate "bin\pg_ctl.exe"))) {
-      return (Resolve-Path $candidate).Path
+  $exe = Join-Path $root 'artex.exe'
+  if (-not (Test-Path -LiteralPath $exe)) { throw '找不到 artex.exe，请完整解压分发包，或先构建应用。' }
+  $appPortFile = Join-Path $DataDir 'app-port.txt'
+  $stateFile = Join-Path $DataDir 'launcher-state.json'
+  $appPort = Read-ArtexPort $appPortFile $Port
+  $ready = $null
+  $state = $null
+  if (Test-Path -LiteralPath $stateFile) {
+    try { $state = Get-Content -LiteralPath $stateFile -Raw | ConvertFrom-Json } catch { }
+  }
+  if ($state -and $state.port -eq $appPort -and (Test-ArtexProcess $state.app_pid $exe)) { $ready = Get-ArtexReady $appPort }
+  if (-not ($ready -and $ready.ok -and $ready.database -eq 'ready')) {
+    $pgRoot = Find-ArtexPostgres $root
+    if (-not $pgRoot) { throw '找不到 PostgreSQL 运行时。请完整解压 Windows 分发包，或设置 ARTEX_PG_RUNTIME。' }
+    $pgBin = Join-Path $pgRoot 'bin'
+    $env:Path = "$pgBin;$env:Path"
+    if (-not (Test-Path "$env:WINDIR\System32\vcruntime140.dll") -and -not (Test-Path "$pgBin\vcruntime140.dll")) { throw '缺少 VC++ x64 运行库，请安装 Microsoft VC++ 2015-2022 x64，或重新下载完整包。' }
+    $pgData = Join-Path $DataDir 'pgdata'
+    $pgLog = Join-Path $DataDir 'postgres.log'
+    $pgPortFile = Join-Path $DataDir 'pg-port.txt'
+    $pgPort = Read-ArtexPort $pgPortFile $DatabasePort
+    if (-not (Test-Path (Join-Path $pgData 'PG_VERSION'))) {
+      if ((Test-Path $pgData) -and (Get-ChildItem -LiteralPath $pgData -Force | Select-Object -First 1)) { throw 'pgdata 非空但缺少 PG_VERSION。已保留数据，请备份后检查，不能自动重新初始化。' }
+      & "$pgBin\initdb.exe" -D $pgData -U artex --auth=trust -E UTF8 --no-locale
+      if ($LASTEXITCODE -ne 0) { throw "PostgreSQL 初始化失败（$LASTEXITCODE）。" }
     }
-  }
-  return $null
-}
-
-function Invoke-ReadyRequest {
-  try {
-    return Invoke-RestMethod -Uri "http://127.0.0.1:$appPort/api/ready" -TimeoutSec 3
-  } catch {
-    return $null
-  }
-}
-
-if (-not (Test-Path (Join-Path $root "artex.exe"))) {
-  throw "找不到 artex.exe，请先构建应用。"
-}
-
-$pgRoot = Find-PostgresRoot
-if (-not $pgRoot) {
-  throw "找不到便携式 PostgreSQL。请确认分发包包含 runtime\pgsql，或设置 ARTEX_PG_RUNTIME。"
-}
-$pgBin = Join-Path $pgRoot "bin"
-$pgPort = Read-Port $pgPortFile 5433
-if (-not (Test-Path (Join-Path $pgData "PG_VERSION"))) {
-  $pgPort = Get-FreePort $pgPort
-}
-$pgPort | Set-Content $pgPortFile -Encoding ASCII
-$dsn = "postgres://artex@127.0.0.1:$pgPort/artex?sslmode=disable"
-
-# 优先使用包内 VC 运行库；只有开发机和旧外部安装缺少它时才尝试 winget。
-$vcRuntime = Join-Path $env:WINDIR "System32\vcruntime140.dll"
-$bundledVcRuntime = Join-Path $pgBin "vcruntime140.dll"
-if (-not (Test-Path $vcRuntime) -and -not (Test-Path $bundledVcRuntime)) {
-  $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
-  if ($winget) {
-    & $winget.Source install --id Microsoft.VCRedist.2015+.x64 --exact --silent --accept-package-agreements --accept-source-agreements
-    if ($LASTEXITCODE -ne 0) { throw "VC++ 2015-2022 x64 运行库安装失败（$LASTEXITCODE）。" }
-  } else {
-    throw "缺少 VC++ 2015-2022 x64 运行库，且系统没有 winget；请把 vcruntime140.dll 放入 runtime\pgsql\bin 后重试。"
-  }
-}
-
-$env:Path = "$pgBin;$env:Path"
-
-if (-not (Test-Path (Join-Path $pgData "PG_VERSION"))) {
-  & (Join-Path $pgBin "initdb.exe") -D $pgData -U artex --auth=trust -E UTF8 --no-locale
-  if ($LASTEXITCODE -ne 0) { throw "PostgreSQL 初始化失败（$LASTEXITCODE）。" }
-}
-
-& (Join-Path $pgBin "pg_ctl.exe") -D $pgData status *> $null
-if ($LASTEXITCODE -ne 0) {
-  if (Test-PortInUse $pgPort) {
-    $pgPort = Get-FreePort $pgPort
-    $pgPort | Set-Content $pgPortFile -Encoding ASCII
-    $dsn = "postgres://artex@127.0.0.1:$pgPort/artex?sslmode=disable"
-  }
-  & (Join-Path $pgBin "pg_ctl.exe") -D $pgData -o "-p $pgPort -h 127.0.0.1" -l $pgLog start
-  if ($LASTEXITCODE -ne 0) { throw "PostgreSQL 启动失败，请查看 data\postgres.log。" }
-}
-
-$pgReady = $false
-for ($attempt = 0; $attempt -lt 30; $attempt++) {
-  & (Join-Path $pgBin "psql.exe") -h 127.0.0.1 -p $pgPort -U artex -d postgres -tAc "SELECT 1" *> $null
-  if ($LASTEXITCODE -eq 0) { $pgReady = $true; break }
-  Start-Sleep -Seconds 1
-}
-if (-not $pgReady) { throw "PostgreSQL 在 30 秒内没有就绪。" }
-
-$dbExists = & (Join-Path $pgBin "psql.exe") -h 127.0.0.1 -p $pgPort -U artex -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='artex'"
-$dbExistsText = if ($null -eq $dbExists) { "" } else { [string]$dbExists }
-if ($dbExistsText.Trim() -ne "1") {
-  & (Join-Path $pgBin "createdb.exe") -h 127.0.0.1 -p $pgPort -U artex artex
-  if ($LASTEXITCODE -ne 0) { throw "无法创建 artex 数据库（$LASTEXITCODE）。" }
-}
-
-$env:ARTEX_PG_DSN = $dsn
-$env:ARTEX_SKILL_DIR = Join-Path $root "skills"
-$appPort = Read-Port $appPortFile 8787
-if (Test-PortInUse $appPort) {
-  $existing = Get-NetTCPConnection -State Listen -LocalPort $appPort -ErrorAction SilentlyContinue | Select-Object -First 1
-  $existingReady = Invoke-ReadyRequest
-  if (-not ($existingReady -and $existingReady.ok)) {
-    $appPort = Get-FreePort $appPort
-  }
-}
-$appPort | Set-Content $appPortFile -Encoding ASCII
-$appUrl = "http://127.0.0.1:$appPort"
-$ready = Invoke-ReadyRequest
-if (-not $ready -or -not $ready.ok) {
-  $listener = Get-NetTCPConnection -State Listen -LocalPort 8787 -ErrorAction SilentlyContinue | Select-Object -First 1
-  if ($listener) {
-    throw "127.0.0.1:8787 已被其他程序占用，且不是可用的 ARTEX 服务。"
-  }
-  $args = @("-addr", "127.0.0.1:$appPort", "-proxy=")
-  if ($ArtexArgs) { $args += $ArtexArgs }
-  Start-Process -FilePath (Join-Path $root "artex.exe") `
-    -ArgumentList $args -WorkingDirectory $root `
-    -RedirectStandardOutput $appOut -RedirectStandardError $appErr -WindowStyle Hidden | Out-Null
-}
-
-for ($attempt = 0; $attempt -lt 60; $attempt++) {
-  $ready = Invoke-ReadyRequest
-  if ($ready -and $ready.ok -and $ready.database -eq "ready") {
-    Write-Output "ARTEX 已就绪：$appUrl"
-    Write-Output "数据库已就绪：127.0.0.1:$pgPort/artex"
+    & "$pgBin\pg_ctl.exe" -D $pgData status *> $null
+    if ($LASTEXITCODE -eq 0) {
+      $pidLines = @(Get-Content -LiteralPath (Join-Path $pgData 'postmaster.pid'))
+      $pgPort = [int]$pidLines[3]
+    } else {
+      $pgPort = Get-ArtexFreePort $pgPort
+      $command = '& ' + (Quote-ArtexPS "$pgBin\pg_ctl.exe") + ' -D ' + (Quote-ArtexPS $pgData) + ' -o ' + (Quote-ArtexPS "-p $pgPort -h 127.0.0.1") + ' -l ' + (Quote-ArtexPS $pgLog) + ' -w -t 60 start; exit $LASTEXITCODE'
+      $pgStart = Start-ArtexHidden $command -Wait
+      if ($pgStart.ExitCode -ne 0) { throw "PostgreSQL 启动失败（$($pgStart.ExitCode)），请查看 $pgLog。" }
+    }
+    $pgPort | Set-Content -LiteralPath $pgPortFile -Encoding ASCII
+    $env:PGCONNECT_TIMEOUT = '3'
+    & "$pgBin\psql.exe" -h 127.0.0.1 -p $pgPort -U artex -d postgres -tAc 'SELECT 1' *> $null
+    if ($LASTEXITCODE -ne 0) { throw '数据库进程存在但连接失败，请查看 postgres.log；不会删除 PID 文件或重建数据库。' }
+    $dbExists = & "$pgBin\psql.exe" -h 127.0.0.1 -p $pgPort -U artex -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='artex'"
+    if ($LASTEXITCODE -ne 0) { throw '数据库检查失败。' }
+    if ("$dbExists".Trim() -ne '1') {
+      & "$pgBin\createdb.exe" -h 127.0.0.1 -p $pgPort -U artex artex
+      if ($LASTEXITCODE -ne 0) { throw "创建数据库失败（$LASTEXITCODE）。" }
+    }
+    $env:ARTEX_PG_DSN = "postgres://artex@127.0.0.1:$pgPort/artex?sslmode=disable"
+    $env:ARTEX_SKILL_DIR = Join-Path $root 'skills'
+    $supervisorActive = $false
     try {
-      Start-Process "$appUrl/function/tasks" | Out-Null
-      Write-Output "已打开浏览器任务页。"
-    } catch {
-      Write-Warning "浏览器未能自动打开，请手动访问：$appUrl/function/tasks"
+      $probe = [IO.File]::Open((Join-Path $DataDir 'supervisor.lock'), 'OpenOrCreate', 'ReadWrite', 'None')
+      $probe.Dispose()
+    } catch [IO.IOException] { $supervisorActive = $true }
+    if (-not $supervisorActive) {
+      $appPort = Get-ArtexFreePort $appPort
+      $appPort | Set-Content -LiteralPath $appPortFile -Encoding ASCII
+      $options = @{ Root = $root; DataDir = $DataDir; Port = $appPort; ArtexArgs = @($ArtexArgs) } | ConvertTo-Json -Compress
+      $command = '& ' + (Quote-ArtexPS (Join-Path $root 'scripts\windows-supervisor.ps1')) + ' -OptionsJson ' + (Quote-ArtexPS $options)
+      $supervisor = Start-ArtexHidden $command
     }
-    exit 0
+    $deadline = [DateTime]::UtcNow.AddSeconds(120)
+    do {
+      $ready = Get-ArtexReady $appPort
+      try { $state = Get-Content -LiteralPath $stateFile -Raw | ConvertFrom-Json } catch { $state = $null }
+      if ($ready -and $ready.ok -and $ready.database -eq 'ready' -and $state -and $state.port -eq $appPort -and (Test-ArtexProcess $state.app_pid $exe)) { break }
+      if ($supervisor -and $supervisor.HasExited) { throw '后台守护程序已退出，请查看 launcher.log 和 artex.stderr.log。' }
+      Start-Sleep -Milliseconds 500
+    } while ([DateTime]::UtcNow -lt $deadline)
+    if (-not ($ready -and $ready.ok -and $ready.database -eq 'ready' -and $state -and $state.port -eq $appPort -and (Test-ArtexProcess $state.app_pid $exe))) { throw '120 秒内未就绪，请查看 launcher.log、artex.stderr.log 和 postgres.log。' }
   }
-  Start-Sleep -Seconds ([Math]::Min(2, 1 + [int]($attempt / 15)))
-}
-throw "ARTEX 在 120 秒内没有就绪，请查看 data\artex.stderr.log 和 data\postgres.log。"
+  $appUrl = "http://127.0.0.1:$appPort"
+  $appUrl | Set-Content -LiteralPath (Join-Path $DataDir 'url.txt') -Encoding ASCII
+  Write-Output "ARTEX $($ready.version) 已就绪：$appUrl/function/tasks/"
+  if (-not $NoBrowser) {
+    try { Start-Process "$appUrl/function/tasks/" | Out-Null }
+    catch { Write-Warning "浏览器未能自动打开，请手动访问：$appUrl/function/tasks/" }
+  }
+} catch {
+  $message = "$(Get-Date -Format o) 启动失败：$($_.Exception.Message)"
+  Add-Content -LiteralPath (Join-Path $DataDir 'launcher.log') -Value $message -Encoding UTF8
+  Add-Content -LiteralPath (Join-Path $DataDir 'launcher.log') -Value $_.ScriptStackTrace -Encoding UTF8
+  Write-Host $message -ForegroundColor Red
+  exit 1
+} finally { if ($lock) { $lock.Dispose() } }

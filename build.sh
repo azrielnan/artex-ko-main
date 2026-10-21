@@ -179,6 +179,9 @@ package_binary() {
   if [ "$goos" = "windows" ]; then
     cp start.bat "$package_root/"
     cp start-local.ps1 "$package_root/"
+    cp 启动.bat 启动.ps1 "$package_root/"
+    mkdir -p "$package_root/scripts"
+    cp scripts/windows-launcher-common.ps1 scripts/windows-supervisor.ps1 "$package_root/scripts/"
   else
     cp start.sh "$package_root/"
     chmod +x "$package_root/start.sh"

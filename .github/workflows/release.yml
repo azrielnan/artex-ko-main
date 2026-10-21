@@ -104,9 +104,36 @@ jobs:
           name: bin-linux-${{ matrix.goarch }}
           path: dist/artex-linux-${{ matrix.goarch }}/artex
 
-  # ③ 모든 zip 을 모아 → GitHub Release 생성
-  release:
+  windows-smoke:
     needs: binaries
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: pkg-windows-amd64
+          path: portable-artifact
+      - name: Test packaged Windows startup with real PostgreSQL
+        shell: powershell
+        run: |
+          $archive = Get-ChildItem portable-artifact/*.zip | Select-Object -First 1
+          Expand-Archive -LiteralPath $archive.FullName -DestinationPath portable-test
+          $package = Get-ChildItem portable-test -Directory | Select-Object -First 1
+          $env:ARTEX_PG_RUNTIME = Join-Path $package.FullName 'runtime\pgsql'
+          & ./scripts/test-windows-launcher.ps1 -PackageRoot $package.FullName
+      - name: Preserve launcher diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-startup-diagnostics
+          path: |
+            portable-test/**/launcher.log
+            portable-test/**/postgres.log
+            portable-test/**/artex.stderr.log
+
+  # ③ 所有平台打包和 Windows 实际启动回归通过后创建 Release。
+  release:
+    needs: [binaries, windows-smoke]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4

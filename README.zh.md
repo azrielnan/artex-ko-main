@@ -170,6 +170,12 @@ ARTEX_TARGETS=linux/amd64,windows/amd64 ./build.sh --release
 
 ## 更新升级
 
+### Windows 0.3.17 启动器
+
+下载完整 Windows 分发包并解压到可写目录，双击 `启动.bat` 或 `start.bat`。首次启动会初始化包内数据库，就绪后打开页面；重复启动复用同一实例。默认端口占用时自动切换，实际地址见 `data/url.txt`。
+
+启动诊断见 `data/launcher.log`、`data/artex.stderr.log`、`data/postgres.log`。请勿在压缩包中直接启动。此版本更新了启动脚本，旧版用户应使用完整包升级，不能仅依靠页面更新主程序；迁移前备份数据，并保持 PostgreSQL 主版本一致。
+
 > 升级只换程序、不动数据：Postgres 数据卷 `pgdata`、`./data`（jwt.key / SQLite 等）、`./skills` 都会保留。**数据库迁移无需手动执行**——`artex` 每次启动会幂等重跑 `schema.sql`（含 `ADD COLUMN` / `CREATE INDEX IF NOT EXISTS`），即“重启即迁移”。升级前仍建议先备份 `./data` 与数据库。
 
 ### 方式一：页面一键更新（推荐）

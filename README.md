@@ -91,7 +91,19 @@ docker compose up -d
 
 ### 方式三：下载 Release
 
-从 [Releases](https://github.com/azrielnan/artex-ko-main/releases) 下载对应平台的压缩包，复制示例配置后启动：
+从 [Releases](https://github.com/azrielnan/artex-ko-main/releases/latest) 下载对应平台的压缩包。
+
+Windows x64：**完整解压**到可写目录，然后双击 `启动.bat` 或 `start.bat`。包内 PostgreSQL 和 REA 运行时无需另外安装 Go、Node.js 或 PostgreSQL；首次启动自动初始化数据库，确认就绪后打开网页。不要在压缩包内直接运行，也不要单独复制 exe。
+
+- 默认访问 `http://127.0.0.1:8787`；端口占用时自动选择其他端口，以 `data/url.txt` 中的地址为准。
+- 重复双击会复用当前实例。关闭启动窗口不影响后台服务；更新退出后由守护脚本重新启动。
+- 如启动失败，查看 `data/launcher.log`、`data/artex.stderr.log` 和 `data/postgres.log`。已有数据库不会被重新初始化。
+- 终端启动且不打开浏览器：`powershell -NoProfile -ExecutionPolicy Bypass -File .\start-local.ps1 -NoBrowser`。
+- 包中不包含个人配置、API Key 或数据库。首次进入 `/setup/` 设置管理员账户，再在系统设置中配置 LLM。
+
+从旧版升级到 0.3.17 时，请下载完整 Windows 包以更新启动脚本；页面一键更新仅替换主程序，不能更新旧启动器。升级前备份数据，勿混用 PostgreSQL 不同主版本的数据目录。
+
+Linux / macOS 需先配置 PostgreSQL：
 
 ```bash
 cp config.example.json config.json
