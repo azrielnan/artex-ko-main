@@ -101,7 +101,7 @@ Windows x64：**完整解压**到可写目录，然后双击 `启动.bat` 或 `s
 - 终端启动且不打开浏览器：`powershell -NoProfile -ExecutionPolicy Bypass -File .\start-local.ps1 -NoBrowser`。
 - 包中不包含个人配置、API Key 或数据库。首次进入 `/setup/` 设置管理员账户，再在系统设置中配置 LLM。
 
-从旧版升级到 0.3.18 时，请下载完整 Windows 包以更新启动脚本；页面一键更新仅替换主程序，不能更新旧启动器。升级前备份数据，勿混用 PostgreSQL 不同主版本的数据目录。
+从旧版升级到 0.3.19 时，请下载完整 Windows 包以更新启动脚本；页面一键更新仅替换主程序，不能更新旧启动器。升级前备份数据，勿混用 PostgreSQL 不同主版本的数据目录。
 
 Linux / macOS 需先配置 PostgreSQL：
 

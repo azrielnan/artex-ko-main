@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [0.3.19] - 2026-10-21
+
+### 修复
+
+- GitHub Windows 发布回归保留中文安装路径测试，但将隔离的 PostgreSQL 数据目录放在系统临时目录，避免 Runner 的非 UTF-8 ANSI 代码页把传给原生 `initdb.exe` 的中文路径转换为问号。
+- 回归测试失败时保留 `initdb.log`、`launcher.log`、`postgres.log` 与应用 stderr，供 Actions 下载诊断。
+
 ## [0.3.18] - 2026-10-21
 
 ### 修复

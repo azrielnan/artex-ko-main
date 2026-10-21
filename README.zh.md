@@ -170,7 +170,7 @@ ARTEX_TARGETS=linux/amd64,windows/amd64 ./build.sh --release
 
 ## 更新升级
 
-### Windows 0.3.18 启动器
+### Windows 0.3.19 启动器
 
 下载完整 Windows 分发包并解压到可写目录，双击 `启动.bat` 或 `start.bat`。首次启动会初始化包内数据库，就绪后打开页面；重复启动复用同一实例。默认端口占用时自动切换，实际地址见 `data/url.txt`。
 
