@@ -197,10 +197,17 @@ function Composer({
     onSend();
   }
   function filesFromClipboard(event: React.ClipboardEvent) {
-    return Array.from(event.clipboardData.items)
+    const files = Array.from(event.clipboardData.items)
       .filter((item) => item.kind === "file")
       .map((item) => item.getAsFile())
       .filter((file): file is File => file !== null);
+    const imageFiles = files.filter(
+      (file) => file.type.startsWith("image/") || /\.(avif|bmp|gif|jpe?g|png|svg|webp)$/i.test(file.name),
+    );
+    // Reverse mode keeps the existing folder/file paste behavior. In a normal
+    // chat, only image files are intercepted so pasting other clipboard content
+    // still behaves like a regular text paste.
+    return folderMode ? files : imageFiles;
   }
   return (
     <div
@@ -294,7 +301,6 @@ function Composer({
           onValueChange={onChange}
           onKeyDown={onKeyDown}
           onPaste={(event) => {
-            if (!folderMode) return;
             const files = filesFromClipboard(event);
             if (files.length === 0) return;
             event.preventDefault();

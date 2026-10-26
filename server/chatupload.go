@@ -3,6 +3,8 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path"
@@ -136,7 +138,7 @@ func (s *Server) chatUpload(w http.ResponseWriter, r *http.Request) {
 	relPaths := r.MultipartForm.Value["path"]
 	out := make([]chatAttachment, 0, len(files))
 	for i, hdr := range files {
-		name := filepath.Base(hdr.Filename) // normal uploads keep only the basename
+		name := chatUploadName(hdr, i) // normal uploads keep only the basename
 		if preservePaths && i < len(relPaths) && strings.TrimSpace(relPaths[i]) != "" {
 			var ok bool
 			name, ok = safeUploadRelativePath(relPaths[i])
@@ -164,6 +166,23 @@ func (s *Server) chatUpload(w http.ResponseWriter, r *http.Request) {
 		out = append(out, chatAttachment{Name: filepath.Base(rel), Path: "uploads/" + rel, Size: hdr.Size, Abs: dest})
 	}
 	writeJSON(w, 200, map[string]any{"attachments": out})
+}
+
+// chatUploadName gives clipboard-generated files a stable, readable name. Some
+// browsers expose a pasted screenshot with an empty filename (or "blob"), but
+// the agent and transcript still need a real path and extension to identify it.
+func chatUploadName(hdr *multipart.FileHeader, index int) string {
+	name := strings.TrimSpace(filepath.Base(hdr.Filename))
+	if name != "" && name != "." && name != ".." && !strings.EqualFold(name, "blob") {
+		return name
+	}
+	ext := ".bin"
+	if mediaType, _, err := mime.ParseMediaType(hdr.Header.Get("Content-Type")); err == nil {
+		if extensions, err := mime.ExtensionsByType(mediaType); err == nil && len(extensions) > 0 {
+			ext = extensions[0]
+		}
+	}
+	return fmt.Sprintf("pasted-file-%d%s", index+1, ext)
 }
 
 func safeUploadRelativePath(raw string) (string, bool) {

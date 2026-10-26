@@ -2876,7 +2876,7 @@
       "sendSideQuestion": "发送旁路问题",
       "stopRun": "停止本次运行",
       "sendMessage": "发送消息",
-      "placeholder": "输入消息，@ 引用记录，Enter 发送",
+      "placeholder": "输入消息，@ 引用记录，Enter 发送；也可直接粘贴截图",
       "placeholderRunning": "Agent 正在回复，可输入 /btw 提问…"
     },
     "llmProfile": {
