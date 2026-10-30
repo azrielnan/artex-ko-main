@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+## [0.3.20] - 2026-10-30
+
+### 修复
+
+- 内置 Skill 不再只有少数预置条目可调用：启动时自动为 Auto、渗透测试、规划和执行 Agent 增量同步技能库授权；新技能自动可见，并保留用户主动关闭的技能。
+- 保持逆向专用 REA、Playwright、ScopeSentry 技能的模式隔离，避免把逆向 MCP 或数据带入安全测试对话。
+- Windows、Linux 和 macOS 发布包均包含普通/逆向对话截图粘贴所需的前端构建与附件上传链路；粘贴截图使用稳定文件名并可由 Agent 读取。
+
 ## [0.3.19] - 2026-10-21
 
 ### 修复
@@ -899,7 +907,8 @@
 - [@Autumn-27](https://github.com/Autumn-27)
 - [@neouks](https://github.com/neouks)
 
-[Unreleased]: https://github.com/Autumn-27/ARTEX/compare/v0.3.10...HEAD
+[Unreleased]: https://github.com/azrielnan/artex-ko-main/compare/v0.3.20...HEAD
+[0.3.20]: https://github.com/azrielnan/artex-ko-main/compare/v0.3.19...v0.3.20
 [0.3.10]: https://github.com/Autumn-27/ARTEX/compare/v0.3.9...v0.3.10
 [0.3.9]: https://github.com/Autumn-27/ARTEX/compare/v0.3.8...v0.3.9
 [0.3.8]: https://github.com/Autumn-27/ARTEX/compare/v0.3.7...v0.3.8

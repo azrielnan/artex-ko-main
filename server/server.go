@@ -239,6 +239,14 @@ func New(ctx context.Context, m *Manager, skillDir string, dataDir string, keyDi
 	// Wire DB-stored prompt templates into the agents (新版方案 §3.3 / §5a). With no
 	// override row, agents keep their built-in defaults — behavior is unchanged.
 	if m.pg != nil {
+		// Keep the shipped skill catalog callable without requiring an operator to
+		// manually grant hundreds of rows one by one. The insert-only sync preserves
+		// existing visibility toggles and only adds new package skills.
+		if n, err := m.pg.SyncBuiltinSkillVisibility(s.skillDir); err != nil {
+			log.Printf("[skills] 默认可见性同步跳过: %v", err)
+		} else if n > 0 {
+			log.Printf("[skills] 已为默认安全 Agent 接入 %d 个新技能授权", n)
+		}
 		agent.PromptOverride = func(key string) (string, bool) {
 			a, err := m.pg.GetAgentByKey(key)
 			if err != nil || a == nil {
