@@ -245,6 +245,7 @@ type Manager struct {
 	// capture is on it becomes the MITM's upstream; when capture is off it is
 	// injected into agent bash env / WebFetch directly. See ProxyAddr.
 	globalProxy string
+	proxyPool   []string
 }
 
 // Settings keys the UI toggles at runtime.
@@ -260,6 +261,7 @@ const (
 	// (http/https/socks5). Empty = direct. Distinct from web_search_proxy (which
 	// only routes the search backend) and the per-profile LLM proxy.
 	settingGlobalProxy = "global_proxy"
+	settingProxyPool   = "proxy_pool"
 	settingWorkers     = "workers"
 	settingLLMRecord   = "llm_record"
 	// LLM 轮询(故障转移)。默认关闭——开启后走「全局激活配置」的 agent 在当前配置
@@ -445,8 +447,15 @@ func NewManager(dir, proxyAddr string) (*Manager, error) {
 	if v, ok, _ := pg.GetSetting(settingGlobalProxy); ok {
 		m.globalProxy = strings.TrimSpace(v)
 	}
+	if v, ok, _ := pg.GetSetting(settingProxyPool); ok {
+		_ = json.Unmarshal([]byte(v), &m.proxyPool)
+	}
 	if m.traffic != nil {
-		if err := m.traffic.SetUpstreamProxy(m.globalProxy); err != nil {
+		if len(m.proxyPool) > 0 {
+			if err := m.traffic.SetUpstreamProxyPool(m.proxyPool); err != nil {
+				log.Printf("[proxy] 代理池无效，已忽略: %v", err)
+			}
+		} else if err := m.traffic.SetUpstreamProxy(m.globalProxy); err != nil {
 			log.Printf("[proxy] 全局代理 %q 无效，已忽略: %v", m.globalProxy, err)
 		}
 	}
@@ -784,6 +793,40 @@ func (m *Manager) GlobalProxy() string {
 	return m.globalProxy
 }
 
+func (m *Manager) ProxyPool() []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return append([]string(nil), m.proxyPool...)
+}
+
+// SetProxyPool validates and persists a JSON-backed round-robin egress pool.
+// The pool is used by the recording proxy for captured target requests.
+func (m *Manager) SetProxyPool(raw []string) error {
+	clean := make([]string, 0, len(raw))
+	if _, err := traffic.NewProxyPool(raw); err != nil {
+		return err
+	}
+	for _, v := range raw {
+		if v = strings.TrimSpace(v); v != "" {
+			clean = append(clean, v)
+		}
+	}
+	b, _ := json.Marshal(clean)
+	if err := m.pg.SetSetting(settingProxyPool, string(b)); err != nil {
+		return err
+	}
+	m.mu.Lock()
+	m.proxyPool = clean
+	m.mu.Unlock()
+	if m.traffic != nil {
+		if len(clean) > 0 {
+			return m.traffic.SetUpstreamProxyPool(clean)
+		}
+		return m.traffic.SetUpstreamProxy(m.globalProxy)
+	}
+	return nil
+}
+
 // SetGlobalProxy validates, persists and applies the global egress proxy
 // (http/https/socks5, optional user:pass; empty = direct). It updates the MITM's
 // upstream immediately; callers must rebuild agents (applyLLM) afterwards so the
@@ -802,6 +845,9 @@ func (m *Manager) SetGlobalProxy(raw string) error {
 	m.globalProxy = raw
 	m.mu.Unlock()
 	if m.traffic != nil {
+		if len(m.ProxyPool()) > 0 {
+			return m.traffic.SetUpstreamProxyPool(m.ProxyPool())
+		}
 		if err := m.traffic.SetUpstreamProxy(raw); err != nil {
 			return err
 		}

@@ -37,6 +37,8 @@ export default function SystemSettingsPage() {
   const [proxyInput, setProxyInput] = React.useState("");
   const [savingProxy, setSavingProxy] = React.useState(false);
   const [globalProxyInput, setGlobalProxyInput] = React.useState("");
+  const [proxyPoolInput, setProxyPoolInput] = React.useState("");
+  const [savingProxyPool, setSavingProxyPool] = React.useState(false);
   const [savingGlobalProxy, setSavingGlobalProxy] = React.useState(false);
   const [testing, setTesting] = React.useState(false);
   const [loaded, setLoaded] = React.useState(false);
@@ -63,6 +65,7 @@ export default function SystemSettingsPage() {
     setTavilyKeySet(!!s.tavily_key_set);
     setProxyInput(s.web_search_proxy ?? "");
     setGlobalProxyInput(s.global_proxy ?? "");
+    setProxyPoolInput((s.proxy_pool ?? []).join("\n"));
     setPyInterp(s.python_interpreter ?? "");
     setWorkers(String(s.workers ?? 3));
     setInjectPlanner(s.constraints_inject_planner !== false);
@@ -239,6 +242,11 @@ export default function SystemSettingsPage() {
       .catch((e) => toast.error(t("toast.saveFailed", { error: (e as Error).message })))
       .finally(() => setSavingGlobalProxy(false));
   };
+  const saveProxyPool = () => {
+    const values = proxyPoolInput.split(/\r?\n|,/).map(v => v.trim()).filter(Boolean);
+    setSavingProxyPool(true);
+    api.setSettings({ proxy_pool: values }).then(s => { apply(s); toast.success(t("toast.proxyPoolSaved")); }).catch(e => toast.error(t("toast.saveFailed", { error: (e as Error).message }))).finally(() => setSavingProxyPool(false));
+  };
 
   // Run a real "test" search ("test") against the CURRENT form values (backend +
   // proxy + entered key), falling back to saved values server-side. Toasts result.
@@ -295,6 +303,11 @@ export default function SystemSettingsPage() {
               onCheckedChange={toggleTraffic}
             />
           </CardContent>
+        </Card>
+
+        <Card className="mb-4 break-inside-avoid md:mb-6">
+          <CardHeader><CardTitle className="text-base">{t("proxyPool.title")}</CardTitle><CardDescription>{t("proxyPool.desc")}</CardDescription></CardHeader>
+          <CardContent className="flex flex-col gap-2"><Label htmlFor="proxy-pool" className="text-sm font-normal text-muted-foreground">{t("proxyPool.label")}</Label><textarea id="proxy-pool" className="min-h-24 rounded-md border bg-background p-2 text-sm" placeholder={t("proxyPool.placeholder")} value={proxyPoolInput} disabled={!loaded || savingProxyPool} onChange={e => setProxyPoolInput(e.target.value)} /><Button type="button" className="self-start" onClick={saveProxyPool} disabled={!loaded || savingProxyPool}>{t("save")}</Button></CardContent>
         </Card>
 
         <Card className="mb-4 break-inside-avoid md:mb-6">

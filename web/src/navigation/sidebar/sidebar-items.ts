@@ -21,6 +21,8 @@ import {
   Target,
   Terminal,
   Wrench,
+  BookOpen,
+  Waypoints,
 } from "lucide-react";
 
 export type NavBadge = "new" | "soon";
@@ -70,6 +72,12 @@ export const sidebarItems: NavGroup[] = [
       { id: "chat", title: "对话", url: "/chat", icon: MessageSquare },
       { id: "tasks", title: "任务", url: "/function/tasks", icon: Target },
       { id: "findings", title: "发现", url: "/function/findings", icon: Bug },
+      { id: "knowledge", title: "知识库", url: "/function/knowledge", icon: BookOpen },
+      { id: "cves", title: "CVE 语料库", url: "/function/cves", icon: ShieldAlert },
+      { id: "tunnels", title: "隧道表", url: "/function/tunnels", icon: Waypoints },
+      { id: "intranet", title: "内网作战", url: "/function/intranet", icon: Waypoints },
+      { id: "chains", title: "Chains 场景", url: "/function/chains", icon: Sparkles },
+      { id: "honeypots", title: "蜜罐识别", url: "/function/honeypots", icon: ShieldAlert },
       { id: "traffic", title: "流量", url: "/function/traffic", icon: Activity },
       { id: "commands", title: "工具执行", url: "/function/commands", icon: Terminal },
       { id: "llm-records", title: "LLM 录制", url: "/function/llm-records", icon: Radio },

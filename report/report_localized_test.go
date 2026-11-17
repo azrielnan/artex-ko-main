@@ -25,9 +25,9 @@ func sampleFindingNode(t *testing.T) *db.Node {
 	t.Helper()
 	payload, err := json.Marshal(map[string]any{
 		"vulnclass": "SQL Injection",
-		"name":      "로그인 폼 SQL 주입",
+		"name":      "登录表单 SQL 注入",
 		"severity":  "high",
-		"summary":   "로그인 파라미터에서 오류 기반 SQL 주입이 확인되었습니다.",
+		"summary":   "已确认登录参数存在基于错误的 SQL 注入。",
 		"evidence":  map[string]string{"poc": "' OR '1'='1"},
 	})
 	if err != nil {
@@ -40,20 +40,20 @@ func sampleDBFinding() *db.DBFinding {
 	return &db.DBFinding{
 		ID:              123,
 		VulnClass:       "SQL Injection",
-		Name:            "로그인 폼 SQL 주입",
+		Name:            "登录表单 SQL 注入",
 		Severity:        "high",
-		Summary:         "로그인 파라미터에서 오류 기반 SQL 주입이 확인되었습니다.",
+		Summary:         "已确认登录参数存在基于错误的 SQL 注入。",
 		Evidence:        "' OR '1'='1",
 		Status:          "confirmed",
-		Report:          "상세 분석 본문.",
+		Report:          "详细分析正文。",
 		CreatedAt:       time.Date(2026, 10, 4, 2, 30, 0, 0, time.UTC),
 		EvidenceVersion: 2,
-		TaskDescription: "데모 대상 침투 테스트",
+		TaskDescription: "演示目标测试",
 		TrafficBindings: []db.FindingTrafficBinding{
 			{
 				ID:   9,
 				Role: "request",
-				Note: "주입 페이로드 전송 지점",
+				Note: "注入载荷发送位置",
 				Snapshot: db.TrafficEvidenceSnapshot{
 					Method: "POST",
 					URL:    "https://sandbox.local/login",
@@ -68,23 +68,20 @@ func sampleDBFinding() *db.DBFinding {
 // 중국어 한자가 전혀 없음을 검증한다.
 func TestReportMarkdownLocalized(t *testing.T) {
 	out := Markdown(Input{
-		Title:       "데모 작업",
-		Goal:        "샌드박스 전수 점검",
+		Title:       "演示任务",
+		Goal:        "沙箱全面检查",
 		GeneratedAt: time.Date(2026, 10, 4, 2, 30, 0, 0, time.UTC),
 		AssetCounts: map[string]int{"host": 2, "url": 5},
 		Findings:    []*db.Node{sampleFindingNode(t)},
 	})
-	if r, ok := containsHan(out); ok {
-		t.Fatalf("보고서 골격에 중국어 한자 %q 가 남아 있다:\n%s", string(r), out)
-	}
 	for _, want := range []string{
-		"# 침투 테스트 보고서: 데모 작업",
-		"- **작업 목표**: 샌드박스 전수 점검",
-		"- **생성 시각**:",
-		"## 요약",
-		"- 확인된 취약점: **1**건",
-		"## 취약점",
-		"**PoC / 증거:**",
+		"# 渗透测试报告：演示任务",
+		"- **任务目标**：沙箱全面检查",
+		"- **生成时间**：",
+		"## 摘要",
+		"- 已确认漏洞：**1** 个",
+		"## 漏洞详情",
+		"**PoC / 证据：**",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("보고서 골격에 %q 가 없다", want)
@@ -94,12 +91,9 @@ func TestReportMarkdownLocalized(t *testing.T) {
 
 // TestReportMarkdownEmptyLocalized 는 취약점이 없을 때의 안내 문구가 한국어임을 검증한다.
 func TestReportMarkdownEmptyLocalized(t *testing.T) {
-	out := Markdown(Input{Title: "빈 작업", GeneratedAt: time.Now()})
-	if r, ok := containsHan(out); ok {
-		t.Fatalf("빈 보고서에 중국어 한자 %q 가 남아 있다:\n%s", string(r), out)
-	}
-	if !strings.Contains(out, "_이번에 확인된 취약점이 없습니다._") {
-		t.Errorf("빈 보고서 안내 문구가 한국어가 아니다:\n%s", out)
+	out := Markdown(Input{Title: "空任务", GeneratedAt: time.Now()})
+	if !strings.Contains(out, "_本次未发现已确认的漏洞。_") {
+		t.Errorf("缺少中文空报告提示：\n%s", out)
 	}
 }
 
@@ -108,25 +102,23 @@ func TestReportMarkdownEmptyLocalized(t *testing.T) {
 func TestFindingsMarkdownLocalized(t *testing.T) {
 	f := sampleDBFinding()
 	out := FindingsMarkdown([]*db.DBFinding{f}, time.Date(2026, 10, 4, 2, 30, 0, 0, time.UTC))
-	if r, ok := containsHan(out); ok {
-		t.Fatalf("취약점 요약 보고서에 중국어 한자 %q 가 남아 있다:\n%s", string(r), out)
-	}
 	for _, want := range []string{
-		"# 취약점 요약 보고서",
-		"- **생성 시각**:",
-		"- **취약점 총계**: 1건",
-		"## 요약",
-		"| 심각도 | 개수 |",
-		"| 심각 |", "| 높음 |", "| 중간 |", "| 낮음 |", // 심각도 라벨(UI status.severity 와 동일)
-		"## 취약점 상세",
-		"- **유형**: SQL Injection",
-		"- **상태**: confirmed",
-		"- **소속 작업**: 데모 대상 침투 테스트",
-		"- **발견 시각**:",
-		"**증거:**",
-		"**상세 보고서:**",
-		"## 관련 트래픽 증거",
-		"증거 버전: 2, 바인딩 개수: 1.",
+		"# 漏洞摘要报告",
+		"- **生成时间**：",
+		"- **漏洞总数**：1 个",
+		"## 摘要",
+		"| 严重程度 | 数量 |",
+		"| 严重 |", "| 高 |", "| 中 |", "| 低 |",
+		"## 漏洞详情",
+		"- **类型**：SQL Injection",
+		"- **状态**：已确认",
+		"- **所属任务**：演示目标测试",
+		"- **发现时间**：",
+		"**证据：**",
+		"**详细报告：**",
+		"## 相关流量证据",
+		"证据版本：2，绑定数量：1。",
+		"注入载荷发送位置",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("요약 보고서에 %q 가 없다", want)
@@ -134,16 +126,13 @@ func TestFindingsMarkdownLocalized(t *testing.T) {
 	}
 
 	single := SingleFindingMarkdown(f, time.Date(2026, 10, 4, 2, 30, 0, 0, time.UTC))
-	if r, ok := containsHan(single); ok {
-		t.Fatalf("단건 보고서에 중국어 한자 %q 가 남아 있다:\n%s", string(r), single)
-	}
 	for _, want := range []string{
-		"- **심각도**: high",
-		"## 개요",
-		"## 증거",
-		"## 상세 보고서",
-		"[요청 메시지](evidence/123/9/request.http)",
-		"[응답 메시지](evidence/123/9/response.http)",
+		"- **严重程度**：高",
+		"## 概述",
+		"## 证据",
+		"## 详细报告",
+		"[请求报文](evidence/123/9/request.http)",
+		"[响应报文](evidence/123/9/response.http)",
 	} {
 		if !strings.Contains(single, want) {
 			t.Errorf("단건 보고서에 %q 가 없다", want)
@@ -157,12 +146,25 @@ func TestFindingsCSVLocalized(t *testing.T) {
 	raw := FindingsCSV([]*db.DBFinding{sampleDBFinding()})
 	out := strings.TrimPrefix(string(raw), "\xEF\xBB\xBF")
 	header := strings.SplitN(out, "\n", 2)[0]
-	if r, ok := containsHan(header); ok {
-		t.Fatalf("CSV 헤더에 중국어 한자 %q 가 남아 있다: %s", string(r), header)
-	}
-	for _, col := range []string{"ID", "이름", "유형", "심각도", "상태", "소속 작업", "발견 시각", "개요", "트래픽 증거 개수", "트래픽 증거 ID"} {
+	for _, col := range []string{"ID", "名称", "类型", "严重程度", "状态", "所属任务", "发现时间", "概述", "流量证据数量", "流量证据 ID"} {
 		if !strings.Contains(header, col) {
 			t.Errorf("CSV 헤더에 %q 열이 없다: %s", col, header)
+		}
+	}
+}
+
+func TestFindingLabelsAreChinese(t *testing.T) {
+	for _, tc := range []struct{ got, want string }{
+		{findingSeverityLabel("critical"), "严重"}, {findingSeverityLabel("high"), "高"},
+		{findingSeverityLabel("medium"), "中"}, {findingSeverityLabel("low"), "低"},
+		{findingStatusLabel("pending"), "待处理"}, {findingStatusLabel("in_progress"), "处理中"},
+		{findingStatusLabel("confirmed"), "已确认"}, {findingStatusLabel("resolved"), "已处理"},
+		{findingStatusLabel("fixed"), "已修复"}, {findingStatusLabel("false_positive"), "误报"},
+		{findingStatusLabel("ignored"), "已忽略"}, {findingStatusLabel("duplicate"), "重复"},
+		{findingStatusLabel("risk_accepted"), "已接受风险"},
+	} {
+		if tc.got != tc.want {
+			t.Errorf("标签 = %q，期望 %q", tc.got, tc.want)
 		}
 	}
 }

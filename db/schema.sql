@@ -101,6 +101,19 @@ CREATE INDEX IF NOT EXISTS idx_av2_bound_domains ON assets USING GIN(bound_domai
 CREATE INDEX IF NOT EXISTS idx_av2_open_ports   ON assets USING GIN(open_ports)    WHERE type = 'ip';
 CREATE INDEX IF NOT EXISTS idx_av2_last_seen    ON assets(last_seen DESC);
 CREATE INDEX IF NOT EXISTS idx_av2_type_seen    ON assets(type, last_seen DESC);
+
+-- 蜜罐识别结果：与资产和任务绑定，保存评分及可审计命中证据。
+CREATE TABLE IF NOT EXISTS honeypot_assessments (
+    id          BIGSERIAL PRIMARY KEY,
+    asset_id    BIGINT NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+    task_id     BIGINT NOT NULL DEFAULT 0,
+    score       DOUBLE PRECISION NOT NULL DEFAULT 0,
+    products    TEXT[] NOT NULL DEFAULT '{}',
+    evidence    JSONB NOT NULL DEFAULT '[]',
+    scanned_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE(asset_id, task_id)
+);
+CREATE INDEX IF NOT EXISTS idx_honeypot_task_score ON honeypot_assessments(task_id, score DESC);
 ALTER TABLE assets ADD COLUMN IF NOT EXISTS company_source TEXT;
 UPDATE assets SET company_source = 'explicit' WHERE company_source IS NULL;
 ALTER TABLE assets ALTER COLUMN company_source SET DEFAULT 'explicit';
@@ -1393,3 +1406,135 @@ CREATE INDEX IF NOT EXISTS idx_notification_deliveries_batch
     ON notification_deliveries(batch_id) WHERE batch_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_notification_deliveries_channel
     ON notification_deliveries(channel_id, id DESC);
+
+-- Knowledge base, CVE corpus and controlled tunnel records
+CREATE TABLE IF NOT EXISTS knowledge_entries (
+    id BIGSERIAL PRIMARY KEY,
+    canonical_key TEXT NOT NULL UNIQUE,
+    entry_type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    summary TEXT NOT NULL DEFAULT '',
+    normalized JSONB NOT NULL DEFAULT '{}',
+    content TEXT NOT NULL DEFAULT '',
+    source_refs JSONB NOT NULL DEFAULT '[]',
+    tags TEXT[] NOT NULL DEFAULT '{}',
+    cve_ids TEXT[] NOT NULL DEFAULT '{}',
+    dedupe_hash TEXT NOT NULL,
+    confidence TEXT NOT NULL DEFAULT 'unverified',
+    status TEXT NOT NULL DEFAULT 'draft',
+    created_by TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_knowledge_dedupe ON knowledge_entries(dedupe_hash);
+CREATE INDEX IF NOT EXISTS idx_knowledge_type_status ON knowledge_entries(entry_type,status);
+CREATE INDEX IF NOT EXISTS idx_knowledge_tags ON knowledge_entries USING GIN(tags);
+CREATE INDEX IF NOT EXISTS idx_knowledge_cves ON knowledge_entries USING GIN(cve_ids);
+DROP TRIGGER IF EXISTS trg_knowledge_entries_upd ON knowledge_entries;
+CREATE TRIGGER trg_knowledge_entries_upd BEFORE UPDATE ON knowledge_entries FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE TABLE IF NOT EXISTS cve_records (
+    id BIGSERIAL PRIMARY KEY,
+    cve_id TEXT NOT NULL UNIQUE,
+    source TEXT NOT NULL DEFAULT 'local',
+    description TEXT NOT NULL DEFAULT '',
+    published_at TIMESTAMPTZ,
+    modified_at TIMESTAMPTZ,
+    cvss_score NUMERIC,
+    cvss_vector TEXT NOT NULL DEFAULT '',
+    severity TEXT NOT NULL DEFAULT '',
+    cwes TEXT[] NOT NULL DEFAULT '{}',
+    "references" JSONB NOT NULL DEFAULT '[]',
+    affected JSONB NOT NULL DEFAULT '{}',
+    raw JSONB NOT NULL DEFAULT '{}',
+    dedupe_hash TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_cve_records_severity ON cve_records(severity);
+CREATE INDEX IF NOT EXISTS idx_cve_records_modified ON cve_records(modified_at DESC);
+CREATE INDEX IF NOT EXISTS idx_cve_records_search ON cve_records USING GIN (to_tsvector('simple', cve_id || ' ' || description));
+DROP TRIGGER IF EXISTS trg_cve_records_upd ON cve_records;
+CREATE TRIGGER trg_cve_records_upd BEFORE UPDATE ON cve_records FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE TABLE IF NOT EXISTS tunnels (
+    id BIGSERIAL PRIMARY KEY,
+    task_id BIGINT REFERENCES tasks(id) ON DELETE SET NULL,
+    finding_id BIGINT REFERENCES findings(id) ON DELETE SET NULL,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'planned',
+    target TEXT NOT NULL DEFAULT '',
+    listen_addr TEXT NOT NULL DEFAULT '',
+    remote_addr TEXT NOT NULL DEFAULT '',
+    credentials_ref TEXT NOT NULL DEFAULT '',
+    command TEXT NOT NULL DEFAULT '',
+    dry_run_script TEXT NOT NULL DEFAULT '',
+    evidence JSONB NOT NULL DEFAULT '{}',
+    sandbox_required BOOLEAN NOT NULL DEFAULT true,
+    approved BOOLEAN NOT NULL DEFAULT false,
+    created_by TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_tunnels_status ON tunnels(status);
+CREATE INDEX IF NOT EXISTS idx_tunnels_finding ON tunnels(finding_id);
+
+-- 受控立足点会话：secret 使用 jwt.key 派生的 AES-GCM 加密后保存。
+CREATE TABLE IF NOT EXISTS sessions (
+    id BIGSERIAL PRIMARY KEY,
+    kind TEXT NOT NULL,
+    host_asset_id BIGINT,
+    url TEXT NOT NULL DEFAULT '',
+    secret TEXT NOT NULL DEFAULT '',
+    lang TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'alive' CHECK(status IN ('alive','dead')),
+    created_by_task BIGINT,
+    created_by_intent BIGINT,
+    last_beat TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status);
+CREATE INDEX IF NOT EXISTS idx_sessions_task ON sessions(created_by_task);
+DROP TRIGGER IF EXISTS trg_tunnels_upd ON tunnels;
+CREATE TRIGGER trg_tunnels_upd BEFORE UPDATE ON tunnels FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE TABLE IF NOT EXISTS intranet_sessions (
+    id BIGSERIAL PRIMARY KEY,
+    task_id BIGINT REFERENCES tasks(id) ON DELETE SET NULL,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'webshell',
+    target TEXT NOT NULL DEFAULT '',
+    language TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'planned',
+    endpoint TEXT NOT NULL DEFAULT '',
+    credential_ref TEXT NOT NULL DEFAULT '',
+    evidence JSONB NOT NULL DEFAULT '{}',
+    created_by TEXT NOT NULL DEFAULT '',
+    last_seen TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_intranet_sessions_task ON intranet_sessions(task_id);
+CREATE INDEX IF NOT EXISTS idx_intranet_sessions_status ON intranet_sessions(status);
+DROP TRIGGER IF EXISTS trg_intranet_sessions_upd ON intranet_sessions;
+CREATE TRIGGER trg_intranet_sessions_upd BEFORE UPDATE ON intranet_sessions FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE TABLE IF NOT EXISTS credentials (
+    id BIGSERIAL PRIMARY KEY,
+    credential_ref TEXT NOT NULL UNIQUE,
+    kind TEXT NOT NULL DEFAULT 'unknown',
+    source_session_id BIGINT REFERENCES intranet_sessions(id) ON DELETE SET NULL,
+    source_host TEXT NOT NULL DEFAULT '',
+    scope TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'unverified',
+    secret_hint TEXT NOT NULL DEFAULT '',
+    evidence JSONB NOT NULL DEFAULT '{}',
+    created_by TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_credentials_source_host ON credentials(source_host);
+CREATE INDEX IF NOT EXISTS idx_credentials_status ON credentials(status);
+DROP TRIGGER IF EXISTS trg_credentials_upd ON credentials;
+CREATE TRIGGER trg_credentials_upd BEFORE UPDATE ON credentials FOR EACH ROW EXECUTE FUNCTION set_updated_at();

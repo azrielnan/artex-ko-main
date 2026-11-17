@@ -30,7 +30,47 @@ func sortFindingsForExport(fs []*db.DBFinding) {
 
 // findingTitle 은 취약점의 사람이 읽을 수 있는 제목을 고른다: 이름 → 유형 → 「미분류」.
 func findingTitle(f *db.DBFinding) string {
-	return nz(f.Name, nz(f.VulnClass, "미분류"))
+	return nz(f.Name, nz(f.VulnClass, "未分类"))
+}
+
+func findingSeverityLabel(s string) string {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "critical":
+		return "严重"
+	case "high":
+		return "高"
+	case "medium":
+		return "中"
+	case "low":
+		return "低"
+	default:
+		return nz(s, "信息")
+	}
+}
+
+func findingStatusLabel(s string) string {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "pending":
+		return "待处理"
+	case "in_progress":
+		return "处理中"
+	case "confirmed":
+		return "已确认"
+	case "resolved":
+		return "已处理"
+	case "fixed":
+		return "已修复"
+	case "false_positive":
+		return "误报"
+	case "ignored":
+		return "已忽略"
+	case "duplicate":
+		return "重复"
+	case "risk_accepted":
+		return "已接受风险"
+	default:
+		return nz(s, "未知")
+	}
 }
 
 // FindingsMarkdown 은 여러 건의 findings 를 하나의 요약 보고서로 통합한다(요약 + 심각도별
@@ -40,48 +80,48 @@ func FindingsMarkdown(fs []*db.DBFinding, generatedAt time.Time) string {
 	sortFindingsForExport(items)
 
 	var b strings.Builder
-	b.WriteString("# 취약점 요약 보고서\n\n")
-	fmt.Fprintf(&b, "- **생성 시각**: %s\n", generatedAt.Format("2006-01-02 15:04:05"))
-	fmt.Fprintf(&b, "- **취약점 총계**: %d건\n\n", len(items))
+	b.WriteString("# 漏洞摘要报告\n\n")
+	fmt.Fprintf(&b, "- **生成时间**：%s\n", generatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(&b, "- **漏洞总数**：%d 个\n\n", len(items))
 
 	// 요약: 심각도별 집계.
 	counts := map[string]int{}
 	for _, f := range items {
 		counts[f.Severity]++
 	}
-	b.WriteString("## 요약\n\n")
-	b.WriteString("| 심각도 | 개수 |\n| --- | --- |\n")
+	b.WriteString("## 摘要\n\n")
+	b.WriteString("| 严重程度 | 数量 |\n| --- | --- |\n")
 	for _, s := range []struct{ key, label string }{
-		{"critical", "심각"}, {"high", "높음"}, {"medium", "중간"}, {"low", "낮음"},
+		{"critical", "严重"}, {"high", "高"}, {"medium", "中"}, {"low", "低"},
 	} {
 		fmt.Fprintf(&b, "| %s | %d |\n", s.label, counts[s.key])
 	}
 	b.WriteString("\n")
 
 	if len(items) == 0 {
-		b.WriteString("_일치하는 취약점이 없습니다._\n")
+		b.WriteString("_没有符合条件的漏洞。_\n")
 		return b.String()
 	}
 
-	b.WriteString("## 취약점 상세\n\n")
+	b.WriteString("## 漏洞详情\n\n")
 	for i, f := range items {
 		fmt.Fprintf(&b, "### %d. [%s] %s\n\n", i+1, strings.ToUpper(nz(f.Severity, "info")), findingTitle(f))
 		if f.VulnClass != "" {
-			fmt.Fprintf(&b, "- **유형**: %s\n", f.VulnClass)
+			fmt.Fprintf(&b, "- **类型**：%s\n", f.VulnClass)
 		}
-		fmt.Fprintf(&b, "- **상태**: %s\n", nz(f.Status, "pending"))
+		fmt.Fprintf(&b, "- **状态**：%s\n", findingStatusLabel(f.Status))
 		if desc := strings.TrimSpace(f.TaskDescription); desc != "" {
-			fmt.Fprintf(&b, "- **소속 작업**: %s\n", desc)
+			fmt.Fprintf(&b, "- **所属任务**：%s\n", desc)
 		}
-		fmt.Fprintf(&b, "- **발견 시각**: %s\n\n", f.CreatedAt.Format("2006-01-02 15:04:05"))
+		fmt.Fprintf(&b, "- **发现时间**：%s\n\n", f.CreatedAt.Format("2006-01-02 15:04:05"))
 		if s := strings.TrimSpace(f.Summary); s != "" {
 			fmt.Fprintf(&b, "%s\n\n", s)
 		}
 		if e := strings.TrimSpace(f.Evidence); e != "" {
-			fmt.Fprintf(&b, "**증거:**\n\n```\n%s\n```\n\n", e)
+			fmt.Fprintf(&b, "**证据：**\n\n```\n%s\n```\n\n", e)
 		}
 		if rep := strings.TrimSpace(f.Report); rep != "" {
-			b.WriteString("**상세 보고서:**\n\n")
+			b.WriteString("**详细报告：**\n\n")
 			b.WriteString(rep)
 			b.WriteString("\n\n")
 		}
@@ -96,23 +136,23 @@ func SingleFindingMarkdown(f *db.DBFinding, generatedAt time.Time) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# [%s] %s\n\n", strings.ToUpper(nz(f.Severity, "info")), findingTitle(f))
 	if f.VulnClass != "" {
-		fmt.Fprintf(&b, "- **유형**: %s\n", f.VulnClass)
+		fmt.Fprintf(&b, "- **类型**：%s\n", f.VulnClass)
 	}
-	fmt.Fprintf(&b, "- **심각도**: %s\n", nz(f.Severity, "info"))
-	fmt.Fprintf(&b, "- **상태**: %s\n", nz(f.Status, "pending"))
+	fmt.Fprintf(&b, "- **严重程度**：%s\n", findingSeverityLabel(f.Severity))
+	fmt.Fprintf(&b, "- **状态**：%s\n", findingStatusLabel(f.Status))
 	if desc := strings.TrimSpace(f.TaskDescription); desc != "" {
-		fmt.Fprintf(&b, "- **소속 작업**: %s\n", desc)
+		fmt.Fprintf(&b, "- **所属任务**：%s\n", desc)
 	}
-	fmt.Fprintf(&b, "- **발견 시각**: %s\n", f.CreatedAt.Format("2006-01-02 15:04:05"))
-	fmt.Fprintf(&b, "- **생성 시각**: %s\n\n", generatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(&b, "- **发现时间**：%s\n", f.CreatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Fprintf(&b, "- **生成时间**：%s\n\n", generatedAt.Format("2006-01-02 15:04:05"))
 	if s := strings.TrimSpace(f.Summary); s != "" {
-		fmt.Fprintf(&b, "## 개요\n\n%s\n\n", s)
+		fmt.Fprintf(&b, "## 概述\n\n%s\n\n", s)
 	}
 	if e := strings.TrimSpace(f.Evidence); e != "" {
-		fmt.Fprintf(&b, "## 증거\n\n```\n%s\n```\n\n", e)
+		fmt.Fprintf(&b, "## 证据\n\n```\n%s\n```\n\n", e)
 	}
 	if rep := strings.TrimSpace(f.Report); rep != "" {
-		b.WriteString("## 상세 보고서\n\n")
+		b.WriteString("## 详细报告\n\n")
 		b.WriteString(rep)
 		b.WriteString("\n")
 	}
@@ -151,7 +191,7 @@ func FindingsCSV(fs []*db.DBFinding) []byte {
 	var buf bytes.Buffer
 	buf.WriteString("\xEF\xBB\xBF") // UTF-8 BOM
 	w := csv.NewWriter(&buf)
-	_ = w.Write([]string{"ID", "이름", "유형", "심각도", "상태", "소속 작업", "발견 시각", "개요", "트래픽 증거 개수", "트래픽 증거 ID"})
+	_ = w.Write([]string{"ID", "名称", "类型", "严重程度", "状态", "所属任务", "发现时间", "概述", "流量证据数量", "流量证据 ID"})
 	for _, f := range items {
 		_ = w.Write([]string{
 			fmt.Sprintf("%d", f.ID),
@@ -183,18 +223,18 @@ func findingTrafficMarkdown(f *db.DBFinding, attachments bool) string {
 		return ""
 	}
 	var out strings.Builder
-	out.WriteString("\n## 관련 트래픽 증거\n\n")
-	fmt.Fprintf(&out, "증거 버전: %d, 바인딩 개수: %d.\n\n", f.EvidenceVersion, len(f.TrafficBindings))
+	out.WriteString("\n## 相关流量证据\n\n")
+	fmt.Fprintf(&out, "证据版本：%d，绑定数量：%d。\n\n", f.EvidenceVersion, len(f.TrafficBindings))
 	if stale {
-		out.WriteString("증거가 변경되어 상세 보고서를 갱신해야 합니다.\n\n")
+		out.WriteString("证据已变更，需要更新详细报告。\n\n")
 	}
 	for i, b := range f.TrafficBindings {
-		fmt.Fprintf(&out, "%d. **증거 #%d · %s**: `%s %s`, 상태 코드 %d\n", i+1, b.ID, b.Role, b.Snapshot.Method, strings.ReplaceAll(b.Snapshot.URL, "`", "%60"), b.Snapshot.Status)
+		fmt.Fprintf(&out, "%d. **证据 #%d · %s**：`%s %s`，状态码 %d\n", i+1, b.ID, b.Role, b.Snapshot.Method, strings.ReplaceAll(b.Snapshot.URL, "`", "%60"), b.Snapshot.Status)
 		if b.Note != "" {
 			fmt.Fprintf(&out, "   %s\n", strings.ReplaceAll(b.Note, "\n", "\n   "))
 		}
 		if attachments {
-			fmt.Fprintf(&out, "   [요청 메시지](evidence/%d/%d/request.http) · [응답 메시지](evidence/%d/%d/response.http)\n", f.ID, b.ID, f.ID, b.ID)
+			fmt.Fprintf(&out, "   [请求报文](evidence/%d/%d/request.http) · [响应报文](evidence/%d/%d/response.http)\n", f.ID, b.ID, f.ID, b.ID)
 		}
 	}
 	out.WriteString("\n")

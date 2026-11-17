@@ -170,6 +170,55 @@ type Traffic struct {
 	// transparent-passthrough paths honor it (go-mitmproxy's getUpstreamConn),
 	// so no host escapes it. Hot-swappable at runtime via SetUpstreamProxy.
 	upstream atomic.Pointer[url.URL]
+	pool     atomic.Pointer[ProxyPool]
+}
+
+// ProxyPool is a concurrency-safe round-robin set of validated egress proxies.
+// It is intentionally small: health and retry decisions remain in the HTTP
+// layer, while this type only selects the next endpoint without blocking.
+type ProxyPool struct {
+	proxies []*url.URL
+	next    atomic.Uint64
+}
+
+func NewProxyPool(raw []string) (*ProxyPool, error) {
+	seen := map[string]struct{}{}
+	p := &ProxyPool{}
+	for _, value := range raw {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		u, err := ValidateProxyURL(value)
+		if err != nil {
+			return nil, err
+		}
+		key := u.String()
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		p.proxies = append(p.proxies, u)
+	}
+	return p, nil
+}
+
+func (p *ProxyPool) Next() *url.URL {
+	if p == nil || len(p.proxies) == 0 {
+		return nil
+	}
+	return p.proxies[(p.next.Add(1)-1)%uint64(len(p.proxies))]
+}
+
+func (p *ProxyPool) URLs() []string {
+	if p == nil {
+		return nil
+	}
+	out := make([]string, len(p.proxies))
+	for i, u := range p.proxies {
+		out[i] = u.String()
+	}
+	return out
 }
 
 // Open initializes the traffic tree, blob store and SQLite index under dir.
@@ -218,7 +267,12 @@ func Open(dir, addr string) (*Traffic, error) {
 	// a direct dial. When a global egress proxy IS configured (SetUpstreamProxy),
 	// every captured request — intercepted AND transparently tunneled — is
 	// forwarded through it instead, so no host leaks the real source IP.
-	p.SetUpstreamProxy(func(*http.Request) (*url.URL, error) { return t.upstream.Load(), nil })
+	p.SetUpstreamProxy(func(*http.Request) (*url.URL, error) {
+		if pool := t.pool.Load(); pool != nil {
+			return pool.Next(), nil
+		}
+		return t.upstream.Load(), nil
+	})
 	// Fail-open: MITM every host by default, EXCEPT ones a prior request proved we
 	// can't intercept without breaking (see maybePassthrough). Those are tunneled
 	// transparently so the request still reaches the target instead of being killed.
@@ -324,6 +378,24 @@ func (t *Traffic) SetUpstreamProxy(raw string) error {
 		return err
 	}
 	t.upstream.Store(u)
+	t.pool.Store(nil)
+	return nil
+}
+
+// SetUpstreamProxyPool atomically replaces the egress pool. An empty pool
+// clears both the pool and the single upstream proxy (direct dialing).
+func (t *Traffic) SetUpstreamProxyPool(raw []string) error {
+	p, err := NewProxyPool(raw)
+	if err != nil {
+		return err
+	}
+	if len(p.proxies) == 0 {
+		t.pool.Store(nil)
+		t.upstream.Store(nil)
+		return nil
+	}
+	t.upstream.Store(nil)
+	t.pool.Store(p)
 	return nil
 }
 

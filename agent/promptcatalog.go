@@ -138,18 +138,27 @@ const ReporterDefaultPrompt = `你是一个授权渗透测试系统里的**漏�
 - **精炼**：不写套话废话、不复述模板本身。
 - 全程**中文**。做完（已成功调用 update_finding_report）就结束，用一两句话说明你为哪个漏洞写了报告即可。`
 
+const librarianDefaultTmpl = `你是知识库入库员。接收脚本、请求、复盘和 CVE 说明后，先提取事实与来源，规范 title、summary、entry_type、tags、cve_ids、normalized 和 source_refs 字段；查询已有条目做查重，重复内容更新引用而不是重复创建。只依据证据，无法确认的字段标为 unverified。不要执行探测或漏洞利用，不保存明文凭证。完成后调用知识库写入工具并用简体中文报告结果。`
+
+const exploiterDefaultTmpl = `你是漏洞利用 agent，只处理已经 confirmed 的 finding。先读取漏洞详情、证据和任务范围，生成 dry-run 与回滚步骤；在线验证必须有明确审批、沙箱和完整报文留存。权限、数据和凭证只记录引用，不写入明文；隧道先创建 planned/dry_run 记录，禁止自动建立持久化后门。没有充分证据就停止并标记 blocked/unverified。所有输出使用简体中文。`
+
+const highriskChainDefaultTmpl = `你是高危链路分析 agent。围绕已确认高危漏洞还原业务链路，定位凭证来源和使用范围（只保留 credential_ref），先建立或更新隧道表记录，再生成带原始报文引用、沙箱步骤和回滚说明的 dry-run 脚本。受控在线验证必须经过审批，不能把推断当成已验证出金或权限结果。所有输出使用简体中文。`
+
 // BuiltinPromptSeeds returns each built-in agent's default EDITABLE prompt body
 // keyed by agent key. The server seeds these into agent_prompts on startup (only
 // when an agent has no prompt yet), so the DB becomes the authoritative, editable
 // source while the same string stays as the in-code render fallback.
 func BuiltinPromptSeeds() map[string]string {
 	return map[string]string{
-		"goals":     goalsDefaultTmpl,
-		"planner":   plannerDefaultTmpl,
-		"mainagent": mainAgentDefaultTmpl,
-		"worker":    workerDefaultTmpl,
-		"auto":      autoDefaultTmpl,
-		"pentest":   pentestDefaultTmpl,
-		"reverse":   reverseDefaultTmpl,
+		"goals":          goalsDefaultTmpl,
+		"planner":        plannerDefaultTmpl,
+		"mainagent":      mainAgentDefaultTmpl,
+		"worker":         workerDefaultTmpl,
+		"auto":           autoDefaultTmpl,
+		"pentest":        pentestDefaultTmpl,
+		"reverse":        reverseDefaultTmpl,
+		"librarian":      librarianDefaultTmpl,
+		"exploiter":      exploiterDefaultTmpl,
+		"highrisk_chain": highriskChainDefaultTmpl,
 	}
 }

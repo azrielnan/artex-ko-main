@@ -180,6 +180,11 @@
       "commands": "工具执行",
       "dashboard": "仪表盘",
       "findings": "发现",
+	  "knowledge": "知识库",
+	  "cves": "CVE 语料库",
+	  "tunnels": "隧道表",
+      "intranet": "内网作战",
+      "chains": "Chains 场景",
       "intercept": "拦截规则",
       "llm": "LLM",
       "llm-records": "LLM 录制",
@@ -3117,6 +3122,7 @@
       "proxyCleared": "已清除出口代理（改为直连）",
       "globalProxySaved": "已保存全局代理",
       "globalProxyCleared": "已清除全局代理（改为直连）",
+      "proxyPoolSaved": "已保存代理池",
       "testSuccess": "搜索测试成功 · {backend} 返回 {count} 条结果",
       "testFailed": "搜索测试失败：{error}",
       "testUnknownError": "未知错误"
@@ -3140,6 +3146,12 @@
       "placeholder": "socks5://user:pass@host:1080 或 http://host:port（留空=直连）",
       "configured": "已配置 · 所有目标流量经此代理出网",
       "notConfigured": "未配置 · 目标流量直连出网"
+    },
+    "proxyPool": {
+      "title": "目标探测代理池",
+      "desc": "每行一个 HTTP/HTTPS/SOCKS5 代理，目标探测流量按顺序轮换。留空则使用全局代理。",
+      "label": "代理地址列表",
+      "placeholder": "socks5://host:1080\nhttp://host:8080"
     },
     "constraints": {
       "title": "操作约束注入",

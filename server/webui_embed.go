@@ -27,6 +27,9 @@ func (s *Server) webuiHandler() http.Handler {
 		panic(err)
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Embedded builds are replaced during local development. Prevent the
+		// in-app browser from keeping an older JS chunk/sidebar indefinitely.
+		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
 		p := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
 		if p == "" {
 			p = "index.html"

@@ -25,6 +25,7 @@ import (
 	"github.com/Autumn-27/artex/llmpool"
 	"github.com/Autumn-27/artex/llmrec"
 	"github.com/Autumn-27/artex/report"
+	"github.com/Autumn-27/artex/session"
 	"github.com/Autumn-27/artex/traffic"
 	"github.com/Autumn-27/norma/llm"
 	actool "github.com/Autumn-27/norma/tool"
@@ -103,9 +104,13 @@ const (
 // Server exposes the ARTEX backend over a JSON HTTP API for the shadcn/ui
 // frontend.
 type Server struct {
-	m      *Manager
-	engine *Engine
-	ctx    context.Context
+	m             *Manager
+	engine        *Engine
+	ctx           context.Context
+	dataDir       string
+	tunnelRuntime *tunnelRuntime
+	sessReg       *session.Registry
+	sessStore     *db.SessionStore
 
 	skillDir string // root directory for skill subdirectories
 	jwtKey   []byte // HS256 signing key loaded from / generated into dataDir/jwt.key
@@ -209,12 +214,13 @@ func New(ctx context.Context, m *Manager, skillDir string, dataDir string, keyDi
 	if err != nil {
 		log.Fatalf("[auth] JWT key: %v", err)
 	}
-	s := &Server{m: m, engine: NewEngine(m), ctx: ctx, skillDir: skillDir, jwtKey: key, chatBusy: map[string]bool{},
+	s := &Server{m: m, engine: NewEngine(m), ctx: ctx, skillDir: skillDir, dataDir: dataDir, jwtKey: key, tunnelRuntime: newTunnelRuntime(m.pg), chatBusy: map[string]bool{},
 		chatCancel: map[string]context.CancelCauseFunc{}, triggerQ: map[string][]triggeredRun{},
 		triggerActive: map[string]int{}, triggerCfg: map[string]triggerBehavior{},
 		profChatAgents: map[int64]*agent.ChatAgent{},
 		provByProfile:  map[int64]*provEntry{}, llmHealth: newLLMHealthRegistry(m.pg),
 		taskAgents: map[string]*taskAgentBundle{}, archiveWake: make(chan struct{}, 1)}
+	s.tunnelRuntime.markOrphans()
 	s.initSideQuestions()
 	// 熔断阈值/冷却是失败路径上的热参数，启动时把全局重试策略推给 Registry 一次；
 	// 之后每次保存策略再推一次（saveLLMRetryPolicy）。
@@ -294,6 +300,8 @@ func New(ctx context.Context, m *Manager, skillDir string, dataDir string, keyDi
 		wireTools(m.pg, domainReg) // 内置工具表：按 agent 过滤 + 覆盖描述/schema + 注入默认值
 		seedPrompts(m.pg)          // 内置 agent 默认提示词正文播种进 agent_prompts(仅空时)
 		s.seedOrchestrationTools() // P2 跨任务编排工具 seed 进 tools 表(可按 agent 绑定)
+		s.initSessions()
+		s.seedSessionTools()
 		if err := s.seedFindingRetester(); err != nil {
 			log.Printf("[retester] seed: %v", err)
 		}
@@ -880,6 +888,32 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/llm/records/{id}", s.pgGetLLMRecord)
 	mux.HandleFunc("GET /api/settings", s.getSettings)
 	mux.HandleFunc("PUT /api/settings", s.putSettings)
+	mux.HandleFunc("GET /api/knowledge", s.listKnowledge)
+	mux.HandleFunc("POST /api/knowledge", s.createKnowledge)
+	mux.HandleFunc("GET /api/knowledge/{id}", s.getKnowledge)
+	mux.HandleFunc("PATCH /api/knowledge/{id}", s.updateKnowledge)
+	mux.HandleFunc("POST /api/knowledge/import", s.importKnowledge)
+	mux.HandleFunc("GET /api/cves", s.listCVEs)
+	mux.HandleFunc("GET /api/chains", s.listChains)
+	mux.HandleFunc("GET /api/cves/{cve_id}", s.getCVE)
+	mux.HandleFunc("POST /api/cves/import", s.importCVEs)
+	mux.HandleFunc("POST /api/cves/update", s.updateCVEs)
+	mux.HandleFunc("GET /api/tunnels", s.listTunnels)
+	mux.HandleFunc("POST /api/tunnels", s.createTunnel)
+	mux.HandleFunc("POST /api/tunnels/plan", s.planTunnel)
+	mux.HandleFunc("PATCH /api/tunnels/{id}", s.updateTunnel)
+	mux.HandleFunc("POST /api/tunnels/{id}/deploy", s.deployTunnelRuntime)
+	mux.HandleFunc("POST /api/tunnels/{id}/health", s.healthTunnelRuntime)
+	mux.HandleFunc("POST /api/tunnels/{id}/teardown", s.teardownTunnelRuntime)
+	mux.HandleFunc("GET /api/intranet/sessions", s.listIntranetSessions)
+	mux.HandleFunc("GET /api/intranet/footholds", s.listFootholds)
+	mux.HandleFunc("POST /api/intranet/sessions", s.createIntranetSession)
+	mux.HandleFunc("PATCH /api/intranet/sessions/{id}", s.updateIntranetSession)
+	mux.HandleFunc("GET /api/intranet/credentials", s.listCredentials)
+	mux.HandleFunc("POST /api/intranet/credentials", s.createCredential)
+	mux.HandleFunc("GET /api/intranet/topology", s.intranetTopology)
+	mux.HandleFunc("GET /api/honeypots", s.listHoneypotAssessments)
+	mux.HandleFunc("POST /api/honeypots/scan", s.scanHoneypots)
 	// 漏洞 IM 推送。渠道是「多实例 + 各自过滤规则」的资源，因此独立成一组
 	// REST 接口，而不是塞进扁平的 /api/settings 键值里。
 	mux.HandleFunc("GET /api/notify/meta", s.notifyMeta)
@@ -3398,6 +3432,7 @@ func (s *Server) settingsPayload() map[string]any {
 		"tavily_key_set":           strings.TrimSpace(tavilyKey) != "",
 		"web_search_proxy":         proxy,                       // 独立出口代理(http/https/socks5)，空=直连
 		"global_proxy":             s.m.GlobalProxy(),           // 全局出口代理(http/https/socks5)，所有目标流量走它，空=直连
+		"proxy_pool":               s.m.ProxyPool(),             // 目标探测流量轮换池（捕获代理开启时生效）
 		"python_interpreter":       strings.TrimSpace(pyStored), // 用户/自动设的值(空=用运行时检测)
 		"workers":                  s.m.Workers(),               // 并发工作 agent 数(默认3)；对之后启动的任务生效
 		"task_concurrency_enabled": concOn,                      // 任务并发上限开关(默认关)
@@ -3464,14 +3499,15 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		LLMRecord           *bool `json:"llm_record"` // LLM 录制开关（默认关）；即时生效，无需重建 agent
 		// Web search. WebSearchEnabled/Backend toggle the tool + backend; BraveKey/TavilyKey
 		// are optional — omit (null) to leave a stored key untouched, send "" to clear.
-		WebSearchEnabled *bool   `json:"web_search_enabled"`
-		WebSearchBackend *string `json:"web_search_backend"`
-		BraveKey         *string `json:"brave_search_api_key"`
-		TavilyKey        *string `json:"tavily_search_api_key"`
-		WebSearchProxy   *string `json:"web_search_proxy"`   // 独立出口代理(http/https/socks5)；null=不改，""=清空
-		GlobalProxy      *string `json:"global_proxy"`       // 全局出口代理(http/https/socks5)；null=不改，""=清空(直连)
-		PythonInterp     *string `json:"python_interpreter"` // 自定义脚本工具的 python 解释器路径
-		Workers          *int    `json:"workers"`            // 并发工作 agent 数(>0)；对之后启动的任务生效
+		WebSearchEnabled *bool     `json:"web_search_enabled"`
+		WebSearchBackend *string   `json:"web_search_backend"`
+		BraveKey         *string   `json:"brave_search_api_key"`
+		TavilyKey        *string   `json:"tavily_search_api_key"`
+		WebSearchProxy   *string   `json:"web_search_proxy"`   // 独立出口代理(http/https/socks5)；null=不改，""=清空
+		GlobalProxy      *string   `json:"global_proxy"`       // 全局出口代理(http/https/socks5)；null=不改，""=清空(直连)
+		ProxyPool        *[]string `json:"proxy_pool"`         // 目标探测流量代理池；空数组清空
+		PythonInterp     *string   `json:"python_interpreter"` // 自定义脚本工具的 python 解释器路径
+		Workers          *int      `json:"workers"`            // 并发工作 agent 数(>0)；对之后启动的任务生效
 		// 任务并发上限:同时「运行中」的任务数上限。关闭=不限;开启后新建任务超限则排队,有空位自动启动。
 		ConcurrencyEnabled *bool `json:"task_concurrency_enabled"`
 		ConcurrencyLimit   *int  `json:"task_concurrency_limit"`
@@ -3623,6 +3659,16 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		changed = true // capture-off egress is baked into agents at build time → rebuild
+	}
+	if req.ProxyPool != nil {
+		if len(*req.ProxyPool) > 128 {
+			writeErr(w, 400, "proxy_pool 最多支持 128 个地址")
+			return
+		}
+		if err := s.m.SetProxyPool(*req.ProxyPool); err != nil {
+			writeErr(w, 400, err.Error())
+			return
+		}
 	}
 	if req.WebSearchEnabled != nil || req.WebSearchBackend != nil || req.BraveKey != nil || req.TavilyKey != nil || req.WebSearchProxy != nil {
 		// Fill unspecified fields from current state so a partial PUT doesn't reset them.

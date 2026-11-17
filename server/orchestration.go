@@ -495,11 +495,18 @@ func (s *Server) seedOrchestrationTools() {
 	s.seedWorkerReadbackRebind()  // 修复旧迁移误删：把 search_all_worker_traces/get_worker_trace/node_detail 补绑回 worker(一次性)
 	s.seedAutoReportFindingBinding()
 	s.unbindGoalMetDefault()
-	s.reseedGoalsPrompt()             // goals 提示词加入「抽操作约束」步 → 旧库追加一版新默认(一次性)
-	s.reseedMainAgentPrompt()         // mainagent 提示词加入「目标达成后 add_intent 反问是否建目标」(一次性)
-	s.reseedPlannerPrompt()           // planner 提示词:重写「0 意图」正当理由 + 加量化验收核对(一次性)
-	s.reseedWorkerPrompt()            // worker 提示词:加否定结论证据门槛(一次性)
-	s.seedReporterAgent()             // 预置「报告编写」agent + 工具绑定 + finding 触发器(一次性)
+	s.reseedGoalsPrompt()     // goals 提示词加入「抽操作约束」步 → 旧库追加一版新默认(一次性)
+	s.reseedMainAgentPrompt() // mainagent 提示词加入「目标达成后 add_intent 反问是否建目标」(一次性)
+	s.reseedPlannerPrompt()   // planner 提示词:重写「0 意图」正当理由 + 加量化验收核对(一次性)
+	s.reseedWorkerPrompt()    // worker 提示词:加否定结论证据门槛(一次性)
+	s.seedReporterAgent()     // 预置「报告编写」agent + 工具绑定 + finding 触发器(一次性)
+	s.seedSpecialistAgents()  // 知识库入库、受控利用与高危链路分析 agent
+	if n, err := s.m.PG().SyncSpecialistSkillVisibility(s.skillDir); err != nil {
+		log.Printf("[skills] 专用 Agent skill 分配失败: %v", err)
+	} else if n > 0 {
+		log.Printf("[skills] 已为专用 Agent 接入 %d 个职责匹配的 skill", n)
+	}
+	s.seedCVEToolBindings()           // CVE 检索/详情工具：让执行与专用 agent 都能读取本地语料
 	s.upgradeReporterAgentLabel()     // 将旧库中的韩文显示名称迁移为中文(不覆盖用户修改)
 	s.upgradeReporterTriggerMessage() // 老库补迁移:让 reporter 回传 evidence_version(一次性)
 	s.seedFindingTrafficTools()       // 增加可选证据参数及只读证据工具，保留用户配置
@@ -507,6 +514,63 @@ func (s *Server) seedOrchestrationTools() {
 	// 注：pentest 的默认工具绑定无需迁移——BuiltinToolSeeds 在全新初始化时就把
 	// list_assets/insert_assets/report_finding/list_findings/list_companies 连同
 	// pentest 一起 seed 好了（项目尚无旧库，不做迁移）。
+}
+
+func (s *Server) seedCVEToolBindings() {
+	const flag = "cve_tools_bound_v1"
+	if v, _, _ := s.m.pg.GetSetting(flag); v == "true" {
+		return
+	}
+	for _, key := range []string{"mainagent", "planner", "worker", "auto", "pentest", "librarian", "exploiter", "highrisk_chain"} {
+		if err := s.m.pg.AddAgentToToolBinding(key, []string{"cve_search", "cve_get"}); err != nil {
+			log.Printf("[%s] CVE 工具绑定失败: %v", key, err)
+		}
+	}
+	_ = s.m.pg.SetSetting(flag, "true")
+}
+
+// seedSpecialistAgents creates the three workflow specialists and makes a
+// report_finding event their idempotent hand-off point. The specialist prompts
+// enforce severity/approval gates; the trigger carries the finding/task context.
+func (s *Server) seedSpecialistAgents() {
+	const flag = "specialist_agents_seed_v1"
+	if v, _, _ := s.m.pg.GetSetting(flag); v == "true" {
+		return
+	}
+	defer func() { _ = s.m.pg.SetSetting(flag, "true") }()
+	for _, spec := range []struct {
+		key, name, desc, prompt string
+	}{
+		{"librarian", "知识库入库员", "整理脚本、请求、复盘和 CVE 说明并去重落库。", agent.BuiltinPromptSeeds()["librarian"]},
+		{"exploiter", "漏洞利用", "对已确认漏洞执行审批后的 dry-run 与受控验证。", agent.BuiltinPromptSeeds()["exploiter"]},
+		{"highrisk_chain", "高危链路分析", "还原高危链路并维护凭证引用与隧道记录。", agent.BuiltinPromptSeeds()["highrisk_chain"]},
+	} {
+		a, err := s.m.pg.GetAgentByKey(spec.key)
+		if err != nil || a == nil {
+			a, err = s.m.pg.CreateAgent(spec.key, spec.name, spec.desc)
+			if err != nil {
+				log.Printf("[%s] 创建 agent 失败: %v", spec.key, err)
+				continue
+			}
+		}
+		if err := s.m.pg.SeedPromptIfEmpty(a.ID, spec.prompt); err != nil {
+			log.Printf("[%s] seed prompt 失败: %v", spec.key, err)
+		}
+		tools := []string{"knowledge_search", "get_task_node_detail", "get_task_worker_trace", "list_task_worker_traces", "search_task_worker_traces"}
+		if spec.key == "librarian" {
+			tools = append(tools, "knowledge_upsert")
+		}
+		if spec.key == "exploiter" || spec.key == "highrisk_chain" {
+			tools = append(tools, "create_tunnel", "update_tunnel", "list_task_findings")
+		}
+		if err := s.m.pg.AddAgentToToolBinding(spec.key, tools); err != nil {
+			log.Printf("[%s] 绑定工具失败: %v", spec.key, err)
+		}
+		_ = s.m.pg.SetAgentTriggerBehavior(spec.key, "parallel", "none", 3)
+		if _, err := s.m.pg.CreateTrigger(&db.AgentTrigger{AgentKey: spec.key, Enabled: true, OnToolCall: true, ToolNames: []string{"report_finding"}, ToolCallMessage: "刚登记了一个漏洞。请读取触发上下文中的 finding_id、task_id 和证据，按你的职责执行；先满足证据、审批和沙箱门槛。"}); err != nil {
+			log.Printf("[%s] 创建触发器失败: %v", spec.key, err)
+		}
+	}
 }
 
 // refreshBuiltinToolSchemas propagates code schema/description changes on the

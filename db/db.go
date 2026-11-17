@@ -197,6 +197,9 @@ var builtinAgents = []builtinAgent{
 	// 渗透测试:内置「独立渗透」agent。经对话页驱动,一人从侦察到收尾走完整条渗透链,自己规划自己执行自己验证。默认开启交互式 shell。
 	{"pentest", "渗透测试", "assistant", "独立渗透 agent：一人从侦察→找攻击面→深入利用→验证→收尾走完整条链，自己规划、自己执行、自己对抗式验证。", nil, true, intp(0)},
 	{"reverse", "逆向分析", "assistant", "独立逆向分析 agent：使用 REA 分析用户提供的二进制、应用、源码包或运行时证据。", nil, false, intp(1200)},
+	{"librarian", "知识库入库员", "assistant", "整理脚本、请求、复盘和 CVE 说明，查重、归类、规范字段并写入知识库。", nil, false, intp(900)},
+	{"exploiter", "漏洞利用", "assistant", "对已确认漏洞生成受控 dry-run 和经批准的验证记录，维护凭证引用与隧道记录。", nil, true, intp(1200)},
+	{"highrisk_chain", "高危链路分析", "assistant", "还原高危业务链路，定位凭证引用，先建隧道记录并生成带报文/沙箱证据的 dry-run。", nil, true, intp(1200)},
 }
 
 // seedBuiltins inserts the fixed built-in agents and their variable catalog (idempotent).

@@ -930,6 +930,7 @@ export interface Settings {
   // 全局出口代理(http/https/socks5，可带 user:pass)，所有目标流量走它。开启流量捕获时作为
   // MITM 上游；关闭捕获时直接注入 agent 的 bash/WebFetch。空=直连。
   global_proxy?: string;
+  proxy_pool?: string[];
   python_interpreter?: string; // 自定义脚本工具的 python 解释器路径(空=运行时检测)
   workers?: number; // 并发工作 agent 数(默认3)；对之后启动的任务生效
   // 任务并发上限:同时「运行中」的任务数上限。关闭=不限;开启后新建任务超限则排队,有空位自动启动。
@@ -952,6 +953,68 @@ export interface Settings {
   notify_public_base_url?: string; // 漏洞详情回链的外部访问地址；空=消息不带回链
   notify_digest_interval_min?: number; // 汇总模式周期（分钟），默认 30
 }
+
+export interface KnowledgeEntry {
+  id: number;
+  canonical_key: string;
+  entry_type: string;
+  title: string;
+  summary?: string;
+  normalized?: Record<string, unknown>;
+  content?: string;
+  source_refs?: unknown[];
+  tags?: string[];
+  cve_ids?: string[];
+  confidence?: string;
+  status?: string;
+  created_at?: string;
+  updated_at?: string;
+  evidence?: unknown;
+}
+export interface CVERecord {
+  id: number;
+  cve_id: string;
+  source?: string;
+  description?: string;
+  published_at?: string;
+  modified_at?: string;
+  cvss_score?: number;
+  cvss_vector?: string;
+  severity?: string;
+  cwes?: string[];
+  references?: unknown[];
+  affected?: unknown;
+  raw?: unknown;
+}
+export interface ChainGuide {
+  tag: string;
+  name: string;
+  summary: string;
+  questions: string[];
+  turns: string[];
+}
+export interface Tunnel {
+  id: number;
+  task_id?: number | null;
+  finding_id?: number | null;
+  name: string;
+  kind: string;
+  status: string;
+  target?: string;
+  listen_addr?: string;
+  remote_addr?: string;
+  credentials_ref?: string;
+  command?: string;
+  dry_run_script?: string;
+  sandbox_required?: boolean;
+  approved?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+export interface IntranetSession { id: number; task_id?: number | null; name: string; kind: string; target?: string; language?: string; status: string; endpoint?: string; credential_ref?: string; last_seen?: string; }
+export interface CredentialRef { id: number; credential_ref: string; kind: string; source_session_id?: number | null; source_host?: string; scope?: string; status: string; secret_hint?: string; }
+export interface TopologyNode { id: number; type: string; domain?: string; ip?: string; url?: string; port?: number; }
+export interface HoneypotAssessment { id: number; asset_id: number; task_id: number; score: number; products: string[]; evidence: string[]; scanned_at: string; }
 
 // ---- 漏洞 IM 推送 ----
 

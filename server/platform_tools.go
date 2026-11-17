@@ -24,6 +24,7 @@ func (s *Server) platformTools() []actool.CoreTool {
 		s.toolCreateMCP(),
 		s.toolUpdateMCP(),
 		s.toolDeleteAssetsByHost(),
+		s.toolKnowledgeUpsert(), s.toolKnowledgeSearch(), s.toolCVESearch(), s.toolCVEGet(), s.toolCreateTunnel(), s.toolUpdateTunnel(),
 	}
 }
 
@@ -33,6 +34,110 @@ var platformToolKeys = []string{
 	"create_custom_tool", "update_custom_tool",
 	"create_mcp", "update_mcp",
 	"delete_assets_by_host",
+	"knowledge_upsert", "knowledge_search", "cve_search", "cve_get", "create_tunnel", "update_tunnel",
+}
+
+func (s *Server) toolCVESearch() actool.CoreTool {
+	return roTool("cve_search", "按 CVE 编号、产品或漏洞描述检索本地 CVE 语料库；结果只能作为候选线索，不能替代真实验证。", objSchema(map[string]any{"q": strParam("CVE 编号、产品或关键词"), "severity": strParam("严重度，可选"), "limit": map[string]any{"type": "integer", "minimum": 1, "maximum": 50}}, "q"), func(_ context.Context, in json.RawMessage) (actool.Result, error) {
+		var a struct {
+			Q        string `json:"q"`
+			Severity string `json:"severity"`
+			Limit    int    `json:"limit"`
+		}
+		if err := json.Unmarshal(in, &a); err != nil {
+			return actool.Errorf(err.Error()), nil
+		}
+		if a.Limit <= 0 || a.Limit > 50 {
+			a.Limit = 20
+		}
+		rows, err := s.m.pg.SearchCVEs(a.Q, a.Severity, a.Limit)
+		if err != nil {
+			return actool.Errorf(err.Error()), nil
+		}
+		b, _ := json.Marshal(rows)
+		return actool.Text(string(b)), nil
+	})
+}
+
+func (s *Server) toolCVEGet() actool.CoreTool {
+	return roTool("cve_get", "读取单个 CVE 的完整本地条目，包括描述、CVSS、CWE、受影响配置和参考链接。", objSchema(map[string]any{"cve_id": strParam("例如 CVE-2021-44228")}, "cve_id"), func(_ context.Context, in json.RawMessage) (actool.Result, error) {
+		var a struct {
+			CVEID string `json:"cve_id"`
+		}
+		if err := json.Unmarshal(in, &a); err != nil {
+			return actool.Errorf(err.Error()), nil
+		}
+		c, err := s.m.pg.GetCVE(strings.TrimSpace(a.CVEID))
+		if err != nil {
+			return actool.Errorf("CVE 不存在: " + err.Error()), nil
+		}
+		b, _ := json.Marshal(c)
+		return actool.Text(string(b)), nil
+	})
+}
+
+func (s *Server) toolKnowledgeUpsert() actool.CoreTool {
+	return wrTool("knowledge_upsert", "将规范化知识条目查重后写入知识库；凭证只写引用。", objSchema(map[string]any{"canonical_key": strParam("稳定规范键"), "entry_type": strParam("script/request/postmortem/cve/finding"), "title": strParam("标题"), "summary": strParam("摘要"), "content": strParam("正文"), "tags": map[string]any{"type": "array", "items": map[string]any{"type": "string"}}, "cve_ids": map[string]any{"type": "array", "items": map[string]any{"type": "string"}}, "normalized": map[string]any{"type": "object"}, "source_refs": map[string]any{"type": "array"}}, "title", "content"), func(_ context.Context, in json.RawMessage) (actool.Result, error) {
+		var k db.KnowledgeEntry
+		if e := json.Unmarshal(in, &k); e != nil {
+			return actool.Errorf(e.Error()), nil
+		}
+		k.CreatedBy = "agent"
+		id, e := s.m.pg.UpsertKnowledgeEntry(&k)
+		if e != nil {
+			return actool.Errorf(e.Error()), nil
+		}
+		return actool.Text(fmt.Sprintf("knowledge entry %d upserted", id)), nil
+	})
+}
+func (s *Server) toolKnowledgeSearch() actool.CoreTool {
+	return roTool("knowledge_search", "按关键词、类型或状态检索知识库条目。", objSchema(map[string]any{"q": strParam("关键词"), "type": strParam("类型，可选"), "status": strParam("状态，可选")}), func(_ context.Context, in json.RawMessage) (actool.Result, error) {
+		var a struct {
+			Q      string `json:"q"`
+			Type   string `json:"type"`
+			Status string `json:"status"`
+		}
+		_ = json.Unmarshal(in, &a)
+		rows, e := s.m.pg.SearchKnowledgeEntries(a.Q, a.Type, a.Status, 50)
+		if e != nil {
+			return actool.Errorf(e.Error()), nil
+		}
+		b, _ := json.Marshal(rows)
+		return actool.Text(string(b)), nil
+	})
+}
+func (s *Server) toolCreateTunnel() actool.CoreTool {
+	return wrTool("create_tunnel", "创建隧道计划或 dry-run 记录；默认要求沙箱，凭证只填引用。", objSchema(map[string]any{"name": strParam("名称"), "kind": strParam("ssh/socks/http/reverse/other"), "target": strParam("目标"), "listen_addr": strParam("监听地址"), "remote_addr": strParam("远端地址"), "credentials_ref": strParam("凭证引用"), "command": strParam("命令"), "dry_run_script": strParam("dry-run 脚本"), "evidence": map[string]any{"type": "object"}}, "name", "kind"), func(_ context.Context, in json.RawMessage) (actool.Result, error) {
+		var t db.Tunnel
+		if e := json.Unmarshal(in, &t); e != nil {
+			return actool.Errorf(e.Error()), nil
+		}
+		t.Status = "planned"
+		t.SandboxRequired = true
+		t.CreatedBy = "agent"
+		id, e := s.m.pg.CreateTunnel(&t)
+		if e != nil {
+			return actool.Errorf(e.Error()), nil
+		}
+		return actool.Text(fmt.Sprintf("tunnel %d planned", id)), nil
+	})
+}
+func (s *Server) toolUpdateTunnel() actool.CoreTool {
+	return wrTool("update_tunnel", "更新隧道状态；active 必须由外部审批后设置 approved=true。", objSchema(map[string]any{"id": map[string]any{"type": "integer"}, "status": strParam("planned/dry_run/active/closed/failed"), "approved": map[string]any{"type": "boolean"}}, "id", "status"), func(_ context.Context, in json.RawMessage) (actool.Result, error) {
+		var a struct {
+			ID       int64  `json:"id"`
+			Status   string `json:"status"`
+			Approved bool   `json:"approved"`
+		}
+		_ = json.Unmarshal(in, &a)
+		if a.Status == "active" && !a.Approved {
+			return actool.Errorf("active 状态必须 approved=true"), nil
+		}
+		if e := s.m.pg.UpdateTunnelStatus(a.ID, a.Status, a.Approved); e != nil {
+			return actool.Errorf(e.Error()), nil
+		}
+		return actool.Text("tunnel updated"), nil
+	})
 }
 
 // ---- assets ----

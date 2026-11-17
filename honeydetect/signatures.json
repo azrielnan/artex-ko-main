@@ -1,0 +1,82 @@
+{
+  "_comment": "批 6 L1 蜜罐静态签名库(HONEYPOT-DETECTION-DESIGN.md 二·L1)。签名只收录有公开来源的,source 字段写明出处;热更新:改文件即生效(按 mtime 重载)。",
+  "signatures": [
+    {
+      "name": "cowrie_default_ssh_banner",
+      "product": "Cowrie",
+      "confidence": 0.99,
+      "source": "cowrie/cowrie v2.6.1 etc/cowrie.cfg.dist 默认 ssh_version_string;Morishita IM2019 / Srinivasa DTRAP2023 Table 10 同录",
+      "match": { "banner_substr": "SSH-2.0-OpenSSH_6.0p1 Debian-4+deb7u2" }
+    },
+    {
+      "name": "opencanary_default_ssh_banner",
+      "product": "OpenCanary",
+      "confidence": 0.95,
+      "source": "thinkst/opencanary 官方默认 opencanary/data/settings.json(ssh.banner)",
+      "match": { "banner_substr": "SSH-2.0-OpenSSH_5.1p1 Debian-4" }
+    },
+    {
+      "name": "kippo_default_ssh_banner",
+      "product": "Kippo",
+      "confidence": 0.9,
+      "source": "Srinivasa DTRAP2023 Table 10(adapted from Vetterl WOOT'18 / Morishita IM2019):Kippo SSH Default banner",
+      "match": { "banner_substr": "SSH-2.0-OpenSSH_5.1p1 Debian-5" }
+    },
+    {
+      "name": "kippo_twisted_bad_packet_length",
+      "product": "Kippo",
+      "confidence": 0.85,
+      "source": "Vetterl & Clayton WOOT'18(twisted 系蜜罐协议指纹)/ 360 Quake《浅析开源蜜罐识别与全网测绘》3.2.1",
+      "match": { "banner_substr": "bad packet length" }
+    },
+    {
+      "name": "opencanary_default_ftp_banner",
+      "product": "OpenCanary",
+      "confidence": 0.9,
+      "source": "thinkst/opencanary 官方默认 opencanary/data/settings.json(ftp.banner)",
+      "match": { "banner_substr": "FTP server ready" }
+    },
+    {
+      "name": "opencanary_default_http_server",
+      "product": "OpenCanary",
+      "confidence": 0.85,
+      "source": "thinkst/opencanary 官方默认 opencanary/data/settings.json(http.banner,Server 头)",
+      "match": { "banner_substr": "Apache/2.2.22 (Ubuntu)" }
+    },
+    {
+      "name": "opencanary_default_mysql_banner",
+      "product": "OpenCanary",
+      "confidence": 0.9,
+      "source": "thinkst/opencanary 官方默认 opencanary/data/settings.json(mysql.banner)",
+      "match": { "banner_substr": "5.5.43-0ubuntu0.14.04.1" }
+    },
+    {
+      "name": "glastopf_default_page",
+      "product": "Glastopf",
+      "confidence": 0.9,
+      "source": "Srinivasa DTRAP2023 Table 13(Censys 80.http.get.body: \"My Resource/\",Shodan 关键词 \"My Resource\");360 Quake 文章 3.3(页面最下方 blog comments 输入框)",
+      "match": { "http_body_substr": "My Resource/" }
+    },
+    {
+      "name": "hfish_default_web_xjs",
+      "product": "HFish",
+      "confidence": 0.85,
+      "source": "360 Quake《浅析开源蜜罐识别与全网测绘》3.3:HFish 默认 8080 端口 WordPress 登录页含 x.js(记录爆破的登录名密码)",
+      "match": { "port": 8080, "http_body_substr": "x.js" }
+    },
+    {
+      "name": "dionaea_default_cert_subject",
+      "product": "Dionaea",
+      "confidence": 0.95,
+      "source": "Srinivasa DTRAP2023(Dionaea 默认证书参数静态)/ Table 13(Censys subject.common_name:\"Nepenthes Development Team\",Shodan ssl:\"Nepenthes\")",
+      "match": { "cert_subject_substr": "Nepenthes Development Team" }
+    },
+    {
+      "name": "dionaea_default_cert_issuer",
+      "product": "Dionaea",
+      "confidence": 0.9,
+      "source": "Shodan 在野样本:Issuer C=DE, CN=Nepenthes Development Team, O=dionaea.carnivore.it, OU=anv;devwerks.net Dionaea obfuscation 文同录",
+      "match": { "cert_issuer_substr": "dionaea.carnivore.it" }
+    }
+  ]
+}
